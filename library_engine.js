@@ -3,10 +3,14 @@ var LibraryEngine = {
 		ctx : null,
 		IMAGE_FOLDER : "../../images/",
 		images : {},
+		mode : 0,
 		init: function() {
 			console.log("$Engine.init");
 			var canvas = Module["canvas"];
 			Engine.ctx = canvas.getContext('2d');
+		},
+		setMode: function(mode) {
+			Engine.mode = mode;
 		},
 		fillPage: function() {
 			var canvas = Module["canvas"];
@@ -108,6 +112,10 @@ var LibraryEngine = {
 		console.log("Engine_Init");
 		Engine.init();
 		return;
+	},
+
+	Engine_GetMode: function() {
+		return Engine.mode;
 	},
 
 	Engine_FilledEllipse: function(x, y, width, height, rgba) {

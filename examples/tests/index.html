@@ -102,7 +102,9 @@
     </style>
   </head>
   <body>
-    <a>One</a><a>Two</a><a>Three</a>
+    <a onclick="selectedMode(0);" href="#">Shapes</a>&nbsp;
+    <a onclick="selectedMode(1);" href="#">Two</a>&nbsp;&nbsp;
+    <a onclick="selectedMode(2);" href="#">Three</a>&nbsp;&nbsp;
     <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()" tabindex=-1></canvas>
 
     <script type='text/javascript'>
@@ -161,6 +163,11 @@
           if (text) Module.printErr('[post-exception status] ' + text);
         };
       };
+
+      function selectedMode(mode) {
+        console.log("selectedMode", mode);
+        Engine.setMode(mode);
+      }
     </script>
     <script>
 var ASSERTIONS = 0;

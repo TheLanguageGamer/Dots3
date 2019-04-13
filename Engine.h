@@ -13,6 +13,7 @@
 extern "C"
 {
 	extern void Engine_Test1();
+	extern int32_t Engine_GetMode();
 	extern void Engine_FillPage();
 	extern void Engine_Init();
 	extern void Engine_FilledEllipse(float x, float y, float width, float height, uint32_t rgba);
@@ -89,8 +90,32 @@ struct Entity
 	}
 };
 
+EM_JS(float, getCanvasWidth, (), {
+	var d = document,
+	    g = d.getElementsByTagName('canvas')[0],
+	    x = g.clientWidth;
+	return x;
+});
+
+EM_JS(float, getCanvasHeight, (), {
+	var d = document,
+	    g = d.getElementsByTagName('canvas')[0],
+	    y = g.clientHeight;
+	return y;
+});
+
 struct Game
 {
+	Game()
+	: count(0)
+	, lastTime(emscripten_get_now())
+	{
+		Engine_Init();
+	}
+
+	uint32_t count;
+	double lastTime;
+	Vector2 screenSize;
 	std::vector<Entity> entities;
 
 	void draw(double currentTime, uint64_t count)
@@ -102,6 +127,12 @@ struct Game
 			{
 				case Type::Circle:
 				{
+					Engine_FilledEllipse(
+						entity.coord1.x + entity.coord3.x,
+						entity.coord1.y + entity.coord3.y,
+						entity.coord3.x,
+						entity.coord3.y,
+						entity.id1);
 					break;
 				}
 				case Type::Rectangle:
@@ -114,6 +145,85 @@ struct Game
 				}
 			}
 		}
+	}
+
+	void pollEvents()
+	{
+		SDL_Event e;
+		while(SDL_PollEvent(&e))
+		{
+			switch (e.type)
+			{
+				case SDL_QUIT:
+				{
+					std::terminate();
+					break;
+				}
+				case SDL_KEYUP:
+				{
+					//
+					break;
+				}
+				case SDL_KEYDOWN:
+				{
+					//
+					break;
+				}
+				case SDL_MOUSEBUTTONDOWN:
+				{
+					SDL_MouseButtonEvent *m = (SDL_MouseButtonEvent*)&e;
+					//printf("button down: %d,%d  %d,%d\n", m->button, m->state, m->x, m->y);
+					//
+					break;
+				}
+				case SDL_MOUSEBUTTONUP:
+				{
+					SDL_MouseButtonEvent *m = (SDL_MouseButtonEvent*)&e;
+					//printf("button up: %d,%d  %d,%d\n", m->button, m->state, m->x, m->y);
+					//
+					break;
+				}
+				case SDL_WINDOWEVENT:
+				{
+					SDL_WindowEvent *w = (SDL_WindowEvent*)&e;
+					printf("window event %u %u\n", w->type, w->event);
+					if (w->event == SDL_WINDOWEVENT_FOCUS_LOST)
+					{
+						//
+					}
+					break;
+				}
+				default:
+				{
+					break;
+				}
+			}
+		}
+	}
+
+	void resize(const Vector2& newSize)
+	{
+		printf("Game::resize %4.2f x %4.2f\n", newSize.x, newSize.y);
+		screenSize = newSize;
+	}
+
+	void loop()
+	{
+		count += 1;
+		double currentTime = emscripten_get_now();
+
+		Engine_FillPage();
+		float screenWidth = getCanvasWidth();
+		float screenHeight = getCanvasHeight();
+		if (screenWidth != screenSize.x || screenHeight != screenSize.y)
+		{
+			resize(Vector2(screenWidth, screenHeight));
+		}
+		
+		pollEvents();
+		draw(currentTime, count);
+		
+		lastTime = currentTime;
 	}
 };
 
