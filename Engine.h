@@ -3,6 +3,8 @@
 ///Users/jhelms/projects/emsdk/emscripten/1.38.27/emcc main.cpp -std=c++11 -O2 -I../../ -s WASM=0 -s --js-library ../../library_engine.js -s ASSERTIONS=2 -o main.js
 
 #include <vector>
+#include <unordered_map>
+#include <string>
 #include <functional>
 
 #include <emscripten.h>
@@ -49,6 +51,9 @@ struct Vector2
 	, y(y) {}
 };
 
+std::vector<std::string> idToString;
+std::unordered_map<std::string, uint32_t> stringToId;
+
 struct Entity
 {
 	Vector2 coord1;
@@ -63,6 +68,37 @@ struct Entity
 	: id1(0)
 	, id2(0)
 	, type(Type::None) {}
+
+	static uint32_t getIdForText(const std::string& text)
+	{
+		if (stringToId.find(text) == stringToId.end())
+		{
+			uint32_t id = idToString.size();
+			idToString.push_back(text);
+			stringToId[text] = id;
+		}
+		return stringToId[text];
+	}
+
+	static const std::string& getTextForId(uint32_t id)
+	{
+		return idToString[id];
+	}
+
+	static Entity text(
+		const std::string& text,
+		const Vector2& position,
+		float fontSize,
+		uint32_t rgba)
+	{
+		Entity entity;
+		entity.type = Type::Text;
+		entity.coord1 = position;
+		entity.coord4.x = fontSize;
+		entity.id1 = rgba;
+		entity.id2 = getIdForText(text);
+		return entity;
+	}
 
 	static Entity circle(
 		const Vector2& position,
@@ -83,6 +119,7 @@ struct Entity
 		uint32_t rgba)
 	{
 		Entity entity;
+		entity.type = Type::Rectangle;
 		entity.coord1 = position;
 		entity.coord3 = size;
 		entity.id1 = rgba;
@@ -104,6 +141,11 @@ EM_JS(float, getCanvasHeight, (), {
 	return y;
 });
 
+struct Screen
+{
+	std::vector<Entity> entities;
+};
+
 struct Game
 {
 	Game()
@@ -116,10 +158,11 @@ struct Game
 	uint32_t count;
 	double lastTime;
 	Vector2 screenSize;
-	std::vector<Entity> entities;
+	std::shared_ptr<Screen> screen;
 
 	void draw(double currentTime, uint64_t count)
 	{
+		std::vector<Entity> entities = screen->entities;
 		for (int64_t i = 0; i < entities.size(); ++i)
 		{
 			const Entity& entity = entities[i];
@@ -137,7 +180,23 @@ struct Game
 				}
 				case Type::Rectangle:
 				{
+					Engine_FilledRectangle(
+						entity.coord1.x,
+						entity.coord1.y,
+						entity.coord3.x,
+						entity.coord3.y,
+						entity.id1);
 					break;
+				}
+				case Type::Text:
+				{
+					const std::string& text = Entity::getTextForId(entity.id2);
+					Engine_FilledText(
+						text.c_str(),
+						entity.coord1.x,
+						entity.coord1.y,
+						entity.coord4.x,
+						entity.id1);
 				}
 				default:
 				{
@@ -201,8 +260,17 @@ struct Game
 		}
 	}
 
-	void resize(const Vector2& newSize)
+	void resize()
 	{
+
+		Engine_FillPage();
+		float screenWidth = getCanvasWidth();
+		float screenHeight = getCanvasHeight();
+		if (screenWidth == screenSize.x && screenHeight == screenSize.y)
+		{
+			return;
+		}
+		const Vector2 newSize = Vector2(screenWidth, screenHeight);
 		printf("Game::resize %4.2f x %4.2f\n", newSize.x, newSize.y);
 		screenSize = newSize;
 	}
@@ -211,15 +279,8 @@ struct Game
 	{
 		count += 1;
 		double currentTime = emscripten_get_now();
-
-		Engine_FillPage();
-		float screenWidth = getCanvasWidth();
-		float screenHeight = getCanvasHeight();
-		if (screenWidth != screenSize.x || screenHeight != screenSize.y)
-		{
-			resize(Vector2(screenWidth, screenHeight));
-		}
 		
+		resize();
 		pollEvents();
 		draw(currentTime, count);
 		
