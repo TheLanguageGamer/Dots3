@@ -21,6 +21,7 @@ extern "C"
 	extern void Engine_FilledEllipse(float x, float y, float width, float height, uint32_t rgba);
 	extern void Engine_FilledRectangle(float x, float y, float width, float height, uint32_t rgba);
 	extern void Engine_FilledText(const char* text, float x, float y, float fontSize, uint32_t rgba);
+	extern float Engine_MeasureTextWidth(const char* text, float fontSize);
 	extern void Engine_Image(const char* name, float x, float y, float width, float height, uint32_t rgba);
 	extern void Engine_RoundedRectangle(
 		float x, float y,
@@ -32,6 +33,7 @@ extern "C"
 enum Type
 {
 	None,
+	Component,
 	Circle,
 	Rectangle,
 	RoundedRectangle,
@@ -97,6 +99,9 @@ struct Entity
 		entity.coord4.x = fontSize;
 		entity.id1 = rgba;
 		entity.id2 = getIdForText(text);
+		float width = Engine_MeasureTextWidth(text.c_str(), fontSize);
+		float height = fontSize;
+		entity.coord3 = Vector2(width, height);
 		return entity;
 	}
 
@@ -125,6 +130,239 @@ struct Entity
 		entity.id1 = rgba;
 		return entity;
 	}
+
+	static Entity component()
+	{
+		Entity entity;
+		entity.type = Type::Component;
+		return entity;
+	}
+};
+
+struct Component
+{
+	int32_t startIndex;
+	int32_t endIndex;
+	Vector2 anchorPoint;
+	Vector2 screenPosition;
+	Vector2 screenSize;
+	std::vector<std::shared_ptr<Component>> children;
+	Component(std::vector<Entity>& entities)
+	: startIndex(entities.size())
+	, endIndex(entities.size())
+	{
+		addEntity(entities, Entity::component());
+	}
+
+	void addEntity(std::vector<Entity>& entities, const Entity& entity)
+	{
+		//assert entities.size() == endIndex + 1
+		endIndex = entities.size();
+		entities.push_back(entity);
+	}
+
+	virtual void addChild(std::shared_ptr<Component> child)
+	{
+		//assert child.startIndex == this->endIndex + 1;
+		endIndex = child->endIndex;
+		children.push_back(child);
+	}
+
+	void setRelativePosition(std::vector<Entity>& entities, const Vector2& position)
+	{
+		entities[startIndex].coord1 = position;
+	}
+	void setRelativeSize(std::vector<Entity>& entities, const Vector2& size)
+	{
+		entities[startIndex].coord2 = size;
+	}
+	void setOffsetPosition(std::vector<Entity>& entities, const Vector2& position)
+	{
+		entities[startIndex].coord3 = position;
+	}
+	void setOffsetSize(std::vector<Entity>& entities, const Vector2& size)
+	{
+		entities[startIndex].coord4 = size;
+	}
+	void setAnchorPoint(std::vector<Entity>& entities, const Vector2& newAnchorPoint)
+	{
+		anchorPoint = newAnchorPoint;
+	}
+
+	const Vector2& getRelativePosition(std::vector<Entity>& entities)
+	{
+		return entities[startIndex].coord1;
+	}
+	const Vector2& getRelativeSize(std::vector<Entity>& entities)
+	{
+		return entities[startIndex].coord2;
+	}
+	const Vector2& getOffsetPosition(std::vector<Entity>& entities)
+	{
+		return entities[startIndex].coord3;
+	}
+	const Vector2& getOffsetSize(std::vector<Entity>& entities)
+	{
+		return entities[startIndex].coord4;
+	}
+
+	void doLayoutCommon(
+		std::vector<Entity>& entities,
+		const Vector2& parentPosition,
+		const Vector2& parentSize)
+	{
+		const Vector2& relativeSize = getRelativeSize(entities);
+		const Vector2& offsetSize = getOffsetSize(entities);
+		const Vector2& relativePosition = getRelativePosition(entities);
+		const Vector2& offsetPosition = getOffsetPosition(entities);
+
+		float newWidth = relativeSize.x*parentSize.x + offsetSize.x;
+		float newHeight = relativeSize.y*parentSize.y + offsetSize.y;
+
+		float newX = parentPosition.x + (parentSize.x)*relativePosition.x - anchorPoint.x*newWidth + offsetPosition.x;
+		float newY = parentPosition.y + (parentSize.y)*relativePosition.y - anchorPoint.y*newHeight + offsetPosition.y;
+
+		screenPosition = Vector2(newX, newY);
+		screenSize = Vector2(newWidth, newHeight);
+	}
+
+	virtual void doLayout(
+		std::vector<Entity>& entities,
+		const Vector2& parentPosition,
+		const Vector2& parentSize)
+	{
+		doLayoutCommon(entities, parentPosition, parentSize);
+
+		for (auto child : children)
+		{
+			child->doLayout(entities, screenPosition, screenSize);
+		}
+	}
+};
+
+struct DrawComponent : Component
+{
+	DrawComponent(std::vector<Entity>& entities)
+	: Component(entities)
+	{
+
+	}
+
+	void doLayout(
+		std::vector<Entity>& entities,
+		const Vector2& parentPosition,
+		const Vector2& parentSize) override
+	{
+		const Vector2 oldScreenSize = screenSize;
+		const Vector2 oldScreenPosition = screenPosition;
+		doLayoutCommon(entities, parentPosition, parentSize);
+
+		for (int32_t index = startIndex + 1; index <= endIndex; ++index)
+		{
+			Entity& entity = entities[index];
+			switch (entity.type)
+			{
+				case Type::Circle:
+				case Type::Rectangle:
+				case Type::Text:
+				{
+					const Vector2& position = entity.coord1;
+					const Vector2& size = entity.coord3;
+
+					float xPercentage = (position.x - oldScreenPosition.x)/oldScreenSize.x;
+					float yPercentage = (position.y - oldScreenPosition.y)/oldScreenSize.y;
+					float newX = screenPosition.x + xPercentage*screenSize.x;
+					float newY = screenPosition.y + yPercentage*screenSize.y;
+
+					entity.coord1 = Vector2(newX, newY);
+
+					if (entities[index].type == Type::Text)
+					{
+						continue;
+					}
+
+					float newWidth = (size.x/oldScreenSize.x)*screenSize.x;
+					float newHeight = (size.y/oldScreenSize.y)*screenSize.y;
+
+					entity.coord3 = Vector2(newWidth, newHeight);
+
+					break;
+				}
+				default:
+				{
+					break;
+				}
+			}
+		}
+
+		for (auto child : children)
+		{
+			child->doLayout(entities, screenPosition, screenSize);
+		}
+	}
+};
+
+struct RectangleComponent : DrawComponent
+{
+	RectangleComponent(std::vector<Entity>& entities, uint32_t rgba)
+	: DrawComponent(entities)
+	{
+		addEntity(entities, Entity::rectangle(Vector2(), Vector2(), rgba));
+	}
+
+	void doLayout(
+		std::vector<Entity>& entities,
+		const Vector2& parentPosition,
+		const Vector2& parentSize) override
+	{
+		const Vector2 oldScreenSize = screenSize;
+		const Vector2 oldScreenPosition = screenPosition;
+		doLayoutCommon(entities, parentPosition, parentSize);
+
+		Entity& rectangle = entities[startIndex+1];
+		rectangle.coord1 = screenPosition;
+		rectangle.coord3 = screenSize;
+		printf("RectangleComponent %4.2f x %4.2f, %4.2f x %4.2f\n", screenPosition.x, screenPosition.y, screenSize.x, screenSize.y);
+
+		for (auto child : children)
+		{
+			child->doLayout(entities, screenPosition, screenSize);
+		}
+	}
+};
+
+struct TextComponent : DrawComponent
+{
+	TextComponent(
+		std::vector<Entity>& entities,
+		const std::string& text,
+		uint32_t rgba,
+		float fontSize)
+	: DrawComponent(entities)
+	{
+		Entity textEntity = Entity::text(text, Vector2(), fontSize, rgba);
+		addEntity(entities, textEntity);
+		setOffsetSize(entities, textEntity.coord3);
+	}
+
+	void doLayout(
+		std::vector<Entity>& entities,
+		const Vector2& parentPosition,
+		const Vector2& parentSize) override
+	{
+		const Vector2 oldScreenSize = screenSize;
+		const Vector2 oldScreenPosition = screenPosition;
+		doLayoutCommon(entities, parentPosition, parentSize);
+
+		Entity& textEntity = entities[startIndex+1];
+		textEntity.coord1 = screenPosition;
+		printf("TextComponent %4.2f x %4.2f, %4.2f x %4.2f\n", screenPosition.x, screenPosition.y, screenSize.x, screenSize.y);
+
+		for (auto child : children)
+		{
+			child->doLayout(entities, screenPosition, screenSize);
+		}
+	}
 };
 
 EM_JS(float, getCanvasWidth, (), {
@@ -144,6 +382,20 @@ EM_JS(float, getCanvasHeight, (), {
 struct Screen
 {
 	std::vector<Entity> entities;
+	std::shared_ptr<struct Component> rootComponent;
+	Vector2 size;
+
+	Screen()
+	: rootComponent(nullptr) {}
+
+	void onResize(const Vector2& newSize)
+	{
+		size = newSize;
+		if (rootComponent)
+		{
+			rootComponent->doLayout(entities, Vector2(), newSize);
+		}
+	}
 };
 
 struct Game
@@ -159,6 +411,12 @@ struct Game
 	double lastTime;
 	Vector2 screenSize;
 	std::shared_ptr<Screen> screen;
+
+	void setScreen(std::shared_ptr<Screen> newScreen)
+	{
+		screen = newScreen;
+		screen->onResize(screenSize);
+	}
 
 	void draw(double currentTime, uint64_t count)
 	{
@@ -194,7 +452,7 @@ struct Game
 					Engine_FilledText(
 						text.c_str(),
 						entity.coord1.x,
-						entity.coord1.y,
+						entity.coord1.y + entity.coord4.x,
 						entity.coord4.x,
 						entity.id1);
 				}
@@ -273,6 +531,8 @@ struct Game
 		const Vector2 newSize = Vector2(screenWidth, screenHeight);
 		printf("Game::resize %4.2f x %4.2f\n", newSize.x, newSize.y);
 		screenSize = newSize;
+		//screen->rootComponent->doLayout(screen->entities, Vector2(), screenSize);
+		screen->onResize(screenSize);
 	}
 
 	void loop()

@@ -101,6 +101,11 @@ var LibraryEngine = {
 			Engine.ctx.fillText(text, x, y);
 			Engine.ctx.fill();
 		},
+		measureTextWidth: function(text, fontSize) {
+			text = UTF8ToString(text);
+			Engine.ctx.font = "" + fontSize + "px Monospace";
+			return Engine.ctx.measureText(text).width;
+		},
 	},
 
 	Engine_Test1: function() {
@@ -132,6 +137,10 @@ var LibraryEngine = {
 
 	Engine_FilledText: function(text, x, y, fontSize, rgba) {
 		Engine.filledText(text, x, y, fontSize, rgba);
+	},
+
+	Engine_MeasureTextWidth: function(text, fontSize) {
+		return Engine.measureTextWidth(text, fontSize);
 	},
 
 	Engine_Image: function(name, x, y, width, height, rgba) {
