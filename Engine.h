@@ -53,6 +53,18 @@ struct Vector2
 	, y(y) {}
 };
 
+struct Vector2Int
+{
+	int32_t x;
+	int32_t y;
+	Vector2Int()
+	: x(0)
+	, y(0) {}
+	Vector2Int(int32_t x, int32_t y)
+	: x(x)
+	, y(y) {}
+};
+
 std::vector<std::string> idToString;
 std::unordered_map<std::string, uint32_t> stringToId;
 
@@ -128,6 +140,24 @@ struct Entity
 		entity.coord1 = position;
 		entity.coord3 = size;
 		entity.id1 = rgba;
+		return entity;
+	}
+
+	static Entity roundedRectangle(
+		const Vector2& position,
+		const Vector2& size,
+		float radius,
+		float thickness,
+		uint32_t strokeRgba,
+		uint32_t fillRgba)
+	{
+		Entity entity;
+		entity.type = Type::RoundedRectangle;
+		entity.coord1 = position;
+		entity.coord3 = size;
+		entity.coord4 = Vector2(radius, thickness);
+		entity.id1 = strokeRgba;
+		entity.id2 = fillRgba;
 		return entity;
 	}
 
@@ -278,7 +308,7 @@ struct DrawComponent : Component
 
 					if (entities[index].type == Type::Text)
 					{
-						continue;
+						break;
 					}
 
 					float newWidth = (size.x/oldScreenSize.x)*screenSize.x;
@@ -322,7 +352,6 @@ struct RectangleComponent : DrawComponent
 		Entity& rectangle = entities[startIndex+1];
 		rectangle.coord1 = screenPosition;
 		rectangle.coord3 = screenSize;
-		printf("RectangleComponent %4.2f x %4.2f, %4.2f x %4.2f\n", screenPosition.x, screenPosition.y, screenSize.x, screenSize.y);
 
 		for (auto child : children)
 		{
@@ -356,12 +385,38 @@ struct TextComponent : DrawComponent
 
 		Entity& textEntity = entities[startIndex+1];
 		textEntity.coord1 = screenPosition;
-		printf("TextComponent %4.2f x %4.2f, %4.2f x %4.2f\n", screenPosition.x, screenPosition.y, screenSize.x, screenSize.y);
 
 		for (auto child : children)
 		{
 			child->doLayout(entities, screenPosition, screenSize);
 		}
+	}
+};
+
+struct EntityGrid : DrawComponent
+{
+	EntityGrid(
+		std::vector<Entity>& entities,
+		Vector2Int matrixSize)
+	: DrawComponent(entities)
+	{
+		float cellSpacing = 10.0f;
+		float padding = 2.0f;
+		for (int32_t i = 0; i < matrixSize.x; ++i)
+		{
+			for(int32_t j = 0; j < matrixSize.y; ++j)
+			{
+				entities.push_back(Entity::roundedRectangle(
+					Vector2(i*cellSpacing, j*cellSpacing),
+					Vector2(cellSpacing - padding, cellSpacing - padding),
+					3.0f,
+					1.0f,
+					0xFFFFFFFF,
+					0x55FFBBFF
+				));
+			}
+		}
+		endIndex = entities.size() - 1;
 	}
 };
 
@@ -444,6 +499,19 @@ struct Game
 						entity.coord3.x,
 						entity.coord3.y,
 						entity.id1);
+					break;
+				}
+				case Type::RoundedRectangle:
+				{
+					Engine_RoundedRectangle(
+						entity.coord1.x,
+						entity.coord1.y,
+						entity.coord3.x,
+						entity.coord3.y,
+						entity.coord4.x,
+						entity.coord4.y,
+						entity.id1,
+						entity.id2);
 					break;
 				}
 				case Type::Text:

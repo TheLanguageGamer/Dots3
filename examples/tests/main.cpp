@@ -24,6 +24,15 @@ struct TestPrimitives : Screen
 			));
 			entities.push_back(textEntity);
 		}
+
+		entities.push_back(Entity::roundedRectangle(
+			Vector2(250.0f, 50.0f),
+			Vector2(100.0f, 200.0f),
+			15.0f,
+			5.0f,
+			0xFFFFFFFF,
+			0x55FFBBFF
+		));
 	}
 };
 
@@ -63,6 +72,19 @@ struct TestTextLabel : Screen
 	}
 };
 
+struct TestEntityGrid : Screen
+{
+	TestEntityGrid()
+	{
+		printf("initializing TestEntityGrid\n");
+		entities.push_back(Entity::circle(Vector2(50.0f, 50.0f), 30.0f, 0x66AAFFFF));
+		rootComponent = std::shared_ptr<struct Component>(new EntityGrid(
+			entities,
+			Vector2Int(20, 30)
+		));
+	}
+};
+
 std::function<void()> loop;
 void main_loop() { loop(); }
 
@@ -73,6 +95,7 @@ int main()
 	//game.entities.push_back(Entity::circle(Vector2(50.0f, 50.0f), 30.0f, 0xFF88AAFF));
 	std::shared_ptr<Screen> testPrimitives = std::shared_ptr<Screen>(new TestPrimitives());
 	std::shared_ptr<Screen> testTextLabel = std::shared_ptr<Screen> (new TestTextLabel());
+	std::shared_ptr<Screen> testEntityGrid = std::shared_ptr<Screen> (new TestEntityGrid());
 	game.setScreen(testPrimitives);
 
 	int32_t mode = 0;
@@ -93,6 +116,11 @@ int main()
 				case 1:
 				{
 					game.setScreen(testTextLabel);
+					break;
+				}
+				case 2:
+				{
+					game.setScreen(testEntityGrid);
 					break;
 				}
 			}

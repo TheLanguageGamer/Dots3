@@ -69,6 +69,7 @@ var LibraryEngine = {
 		roundedRectangle: function(x, y, width, height, radius, thickness, strokeRgba, fillRgba) {
 
 			Engine.ctx.beginPath();
+			Engine.ctx.lineWidth = thickness;
 			Engine.ctx.moveTo(x + radius, y);
 			Engine.ctx.lineTo(x + width - radius, y);
 			Engine.ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
