@@ -90,6 +90,20 @@ struct TestEntityGrid : Screen
 	}
 };
 
+struct TestDraggable : Screen
+{
+	TestDraggable()
+	{
+		printf("initializing TestDraggable\n");
+		entities.push_back(Entity::circle(Vector2(50.0f, 50.0f), 30.0f, 0xFF00FFFF));
+		rootComponent = std::shared_ptr<struct Component>(new RectangleComponent(entities, 0xFFFFFFFF));
+		rootComponent->setRelativePosition(entities, Vector2(0.5f, 0.5f));
+		rootComponent->setAnchorPoint(entities, Vector2(0.5f, 0.5f));
+		rootComponent->setOffsetSize(entities, Vector2(80.0f, 80.0f));
+		rootComponent->isDraggable = true;
+	}
+};
+
 std::function<void()> loop;
 void main_loop() { loop(); }
 
@@ -101,6 +115,7 @@ int main()
 	std::shared_ptr<Screen> testPrimitives = std::shared_ptr<Screen>(new TestPrimitives());
 	std::shared_ptr<Screen> testTextLabel = std::shared_ptr<Screen> (new TestTextLabel());
 	std::shared_ptr<Screen> testEntityGrid = std::shared_ptr<Screen> (new TestEntityGrid());
+	std::shared_ptr<Screen> testDraggable = std::shared_ptr<Screen> (new TestDraggable());
 	game.setScreen(testPrimitives);
 
 	int32_t mode = 0;
@@ -126,6 +141,11 @@ int main()
 				case 2:
 				{
 					game.setScreen(testEntityGrid);
+					break;
+				}
+				case 3:
+				{
+					game.setScreen(testDraggable);
 					break;
 				}
 			}

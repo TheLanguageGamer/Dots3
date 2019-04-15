@@ -65,6 +65,16 @@ struct Vector2Int
 	, y(y) {}
 };
 
+static bool doesPointIntersectRect(const Vector2& point,
+								   const Vector2& rectPosition,
+								   const Vector2& rectSize)
+{
+	return point.x >= rectPosition.x
+		   && point.x <= rectPosition.x + rectSize.x
+		   && point.y >= rectPosition.y
+		   && point.y <= rectPosition.y + rectSize.y; 
+}
+
 std::vector<std::string> idToString;
 std::unordered_map<std::string, uint32_t> stringToId;
 
@@ -184,12 +194,18 @@ struct Component
 	Vector2 screenSize;
 	float aspectRatio;
 	SizeMode sizeMode;
+
+	bool isDraggable;
+	bool isDragging;
+
 	std::vector<std::shared_ptr<Component>> children;
 	Component(std::vector<Entity>& entities)
 	: startIndex(entities.size())
 	, endIndex(entities.size())
 	, aspectRatio(0.0f)
 	, sizeMode(SizeMode_Normal)
+	, isDraggable(false)
+	, isDragging(false)
 	{
 		addEntity(entities, Entity::component());
 	}
@@ -295,17 +311,94 @@ struct Component
 		applySizeMode();
 	}
 
+	void doLayoutChildren(std::vector<Entity>& entities)
+	{
+		for (auto child : children)
+		{
+			child->doLayout(entities, screenPosition, screenSize);
+		}
+	}
+
 	virtual void doLayout(
 		std::vector<Entity>& entities,
 		const Vector2& parentPosition,
 		const Vector2& parentSize)
 	{
 		doLayoutCommon(entities, parentPosition, parentSize);
+		doLayoutChildren(entities);
+	}
 
-		for (auto child : children)
+	virtual void doLayoutEntities(
+		std::vector<Entity>& entities,
+		const Vector2& oldParentPosition,
+		const Vector2& oldParentSize)
+	{
+
+	}
+
+	void onDrag(std::vector<Entity>& entities, const Vector2& delta)
+	{
+		const Vector2& offsetPosition = getOffsetPosition(entities);
+		setOffsetPosition(entities, Vector2(offsetPosition.x + delta.x, offsetPosition.y + delta.y));
+		const Vector2 oldScreenPosition = screenPosition;
+		screenPosition = Vector2(screenPosition.x + delta.x, screenPosition.y + delta.y);
+		doLayoutEntities(entities, oldScreenPosition, screenSize);
+		doLayoutChildren(entities);
+	}
+
+	bool onMouseMove(std::vector<Entity>& entities, const Vector2& position, const Vector2& delta)
+	{
+		if (isDragging)
 		{
-			child->doLayout(entities, screenPosition, screenSize);
+			onDrag(entities, delta);
 		}
+
+		for (int32_t i = children.size()-1; i >= 0; --i)
+		{
+			std::shared_ptr<Component> child = children[i];
+			if (child->onMouseMove(entities, position, delta))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	bool onMouseButton1Down(std::vector<Entity>& entities, const Vector2& position)
+	{
+		if (isDraggable && doesPointIntersectRect(position, screenPosition, screenSize))
+		{
+			printf("made draggable\n");
+			isDragging = true;
+		}
+
+		for (int32_t i = children.size()-1; i >= 0; --i)
+		{
+			std::shared_ptr<Component> child = children[i];
+			if (child->onMouseButton1Down(entities, position))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	bool onMouseButton1Up(std::vector<Entity>& entities, const Vector2& position)
+	{
+		if (isDraggable && isDragging)
+		{
+			isDragging = false;
+		}
+
+		for (int32_t i = children.size()-1; i >= 0; --i)
+		{
+			std::shared_ptr<Component> child = children[i];
+			if (child->onMouseButton1Up(entities, position))
+			{
+				return true;
+			}
+		}
+		return false;
 	}
 };
 
@@ -317,14 +410,11 @@ struct DrawComponent : Component
 
 	}
 
-	void doLayout(
+	void doLayoutEntities(
 		std::vector<Entity>& entities,
-		const Vector2& parentPosition,
-		const Vector2& parentSize) override
+		const Vector2& oldScreenPosition,
+		const Vector2& oldScreenSize) override
 	{
-		const Vector2 oldScreenSize = screenSize;
-		const Vector2 oldScreenPosition = screenPosition;
-		doLayoutCommon(entities, parentPosition, parentSize);
 		printf("Component::doLayout %4.2f x %4.2f, %4.2f x %4.2f\n", screenPosition.x, screenPosition.y, screenSize.x, screenSize.y);
 		for (int32_t index = startIndex + 1; index <= endIndex; ++index)
 		{
@@ -365,11 +455,18 @@ struct DrawComponent : Component
 				}
 			}
 		}
+	}
 
-		for (auto child : children)
-		{
-			child->doLayout(entities, screenPosition, screenSize);
-		}
+	void doLayout(
+		std::vector<Entity>& entities,
+		const Vector2& parentPosition,
+		const Vector2& parentSize) override
+	{
+		const Vector2 oldScreenSize = screenSize;
+		const Vector2 oldScreenPosition = screenPosition;
+		doLayoutCommon(entities, parentPosition, parentSize);
+		doLayoutEntities(entities, oldScreenPosition, oldScreenSize);
+		doLayoutChildren(entities);
 	}
 };
 
@@ -381,6 +478,16 @@ struct RectangleComponent : DrawComponent
 		addEntity(entities, Entity::rectangle(Vector2(), Vector2(), rgba));
 	}
 
+	void doLayoutEntities(
+		std::vector<Entity>& entities,
+		const Vector2& oldScreenPosition,
+		const Vector2& oldScreenSize) override
+	{
+		Entity& rectangle = entities[startIndex+1];
+		rectangle.coord1 = screenPosition;
+		rectangle.coord3 = screenSize;
+	}
+
 	void doLayout(
 		std::vector<Entity>& entities,
 		const Vector2& parentPosition,
@@ -389,17 +496,35 @@ struct RectangleComponent : DrawComponent
 		const Vector2 oldScreenSize = screenSize;
 		const Vector2 oldScreenPosition = screenPosition;
 		doLayoutCommon(entities, parentPosition, parentSize);
-
-		Entity& rectangle = entities[startIndex+1];
-		rectangle.coord1 = screenPosition;
-		rectangle.coord3 = screenSize;
-
-		for (auto child : children)
-		{
-			child->doLayout(entities, screenPosition, screenSize);
-		}
+		doLayoutEntities(entities, oldScreenPosition, oldScreenSize);
+		doLayoutChildren(entities);
 	}
 };
+
+// struct RoundedRectangleComponent : DrawComponent
+// {
+// 	RoundedRectangleComponent(std::vector<Entity>& entities, uint32_t rgba)
+// 	: DrawComponent(entities)
+// 	{
+// 		addEntity(entities, Entity::rectangle(Vector2(), Vector2(), rgba));
+// 	}
+
+// 	void doLayout(
+// 		std::vector<Entity>& entities,
+// 		const Vector2& parentPosition,
+// 		const Vector2& parentSize) override
+// 	{
+// 		const Vector2 oldScreenSize = screenSize;
+// 		const Vector2 oldScreenPosition = screenPosition;
+// 		doLayoutCommon(entities, parentPosition, parentSize);
+
+// 		Entity& rectangle = entities[startIndex+1];
+// 		rectangle.coord1 = screenPosition;
+// 		rectangle.coord3 = screenSize;
+
+// 		doLayoutChildren(entities);
+// 	}
+// };
 
 struct TextComponent : DrawComponent
 {
@@ -415,6 +540,15 @@ struct TextComponent : DrawComponent
 		setOffsetSize(entities, textEntity.coord3);
 	}
 
+	void doLayoutEntities(
+		std::vector<Entity>& entities,
+		const Vector2& oldScreenPosition,
+		const Vector2& oldScreenSize) override
+	{
+		Entity& textEntity = entities[startIndex+1];
+		textEntity.coord1 = screenPosition;
+	}
+
 	void doLayout(
 		std::vector<Entity>& entities,
 		const Vector2& parentPosition,
@@ -423,14 +557,8 @@ struct TextComponent : DrawComponent
 		const Vector2 oldScreenSize = screenSize;
 		const Vector2 oldScreenPosition = screenPosition;
 		doLayoutCommon(entities, parentPosition, parentSize);
-
-		Entity& textEntity = entities[startIndex+1];
-		textEntity.coord1 = screenPosition;
-
-		for (auto child : children)
-		{
-			child->doLayout(entities, screenPosition, screenSize);
-		}
+		doLayoutEntities(entities, oldScreenPosition, oldScreenSize);
+		doLayoutChildren(entities);
 	}
 };
 
@@ -497,6 +625,30 @@ struct Screen
 			rootComponent->doLayout(entities, Vector2(), newSize);
 		}
 	}
+
+	void onMouseMove(const Vector2& position, const Vector2& delta)
+	{
+		if (rootComponent)
+		{
+			rootComponent->onMouseMove(entities, position, delta);
+		}
+	}
+
+	void onMouseButton1Down(const Vector2& position)
+	{
+		if (rootComponent)
+		{
+			rootComponent->onMouseButton1Down(entities, position);
+		}
+	}
+
+	void onMouseButton1Up(const Vector2& position)
+	{
+		if (rootComponent)
+		{
+			rootComponent->onMouseButton1Up(entities, position);
+		}
+	}
 };
 
 struct Game
@@ -506,6 +658,8 @@ struct Game
 	, lastTime(emscripten_get_now())
 	{
 		Engine_Init();
+		SDL_Init(SDL_INIT_VIDEO);
+		SDL_SetVideoMode(50.0f, 50.0f, 32, SDL_SWSURFACE);
 	}
 
 	uint32_t count;
@@ -600,18 +754,24 @@ struct Game
 					//
 					break;
 				}
+				case SDL_MOUSEMOTION:
+				{
+					SDL_MouseMotionEvent *m = (SDL_MouseMotionEvent*)&e;
+					screen->onMouseMove(Vector2(m->x, m->y), Vector2(m->xrel, m->yrel));
+					break;
+				}
 				case SDL_MOUSEBUTTONDOWN:
 				{
 					SDL_MouseButtonEvent *m = (SDL_MouseButtonEvent*)&e;
-					//printf("button down: %d,%d  %d,%d\n", m->button, m->state, m->x, m->y);
-					//
+					printf("button down: %d,%d  %d,%d\n", m->button, m->state, m->x, m->y);
+					screen->onMouseButton1Down(Vector2(m->x, m->y));
 					break;
 				}
 				case SDL_MOUSEBUTTONUP:
 				{
 					SDL_MouseButtonEvent *m = (SDL_MouseButtonEvent*)&e;
 					//printf("button up: %d,%d  %d,%d\n", m->button, m->state, m->x, m->y);
-					//
+					screen->onMouseButton1Up(Vector2(m->x, m->y));
 					break;
 				}
 				case SDL_WINDOWEVENT:
