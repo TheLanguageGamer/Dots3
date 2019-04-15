@@ -82,6 +82,11 @@ struct TestEntityGrid : Screen
 			entities,
 			Vector2Int(20, 30)
 		));
+		rootComponent->sizeMode = Component::SizeMode_FixedAspectRatio;
+		rootComponent->setRelativeSize(entities, Vector2(1.0f, 1.0f));
+		rootComponent->setOffsetSize(entities, Vector2(-10.0f, -10.0f));
+		rootComponent->setRelativePosition(entities, Vector2(0.5f, 0.5f));
+		rootComponent->setAnchorPoint(entities, Vector2(0.5f, 0.5f));
 	}
 };
 

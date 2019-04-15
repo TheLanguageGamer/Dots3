@@ -76,6 +76,7 @@ struct Entity
 	Vector2 coord4;
 	uint32_t id1;
 	uint32_t id2;
+	uint32_t id3;
 	Type type;
 
 	Entity()
@@ -171,15 +172,24 @@ struct Entity
 
 struct Component
 {
+	enum SizeMode
+	{
+		SizeMode_Normal,
+		SizeMode_FixedAspectRatio,
+	};
 	int32_t startIndex;
 	int32_t endIndex;
 	Vector2 anchorPoint;
 	Vector2 screenPosition;
 	Vector2 screenSize;
+	float aspectRatio;
+	SizeMode sizeMode;
 	std::vector<std::shared_ptr<Component>> children;
 	Component(std::vector<Entity>& entities)
 	: startIndex(entities.size())
 	, endIndex(entities.size())
+	, aspectRatio(0.0f)
+	, sizeMode(SizeMode_Normal)
 	{
 		addEntity(entities, Entity::component());
 	}
@@ -236,6 +246,31 @@ struct Component
 		return entities[startIndex].coord4;
 	}
 
+	void applySizeMode()
+	{
+		switch (sizeMode)
+		{
+			case SizeMode_Normal:
+			{
+				break;
+			}
+			case SizeMode_FixedAspectRatio:
+			{			
+				float aspectWidth = screenSize.y*aspectRatio;
+				float aspectHeight = screenSize.x/aspectRatio;
+				if (aspectWidth < screenSize.x)
+				{
+					screenSize = Vector2(aspectWidth, screenSize.y);
+				}
+				else
+				{
+					screenSize = Vector2(screenSize.x, aspectHeight);
+				}
+				break;
+			}
+		}
+	}
+
 	void doLayoutCommon(
 		std::vector<Entity>& entities,
 		const Vector2& parentPosition,
@@ -249,11 +284,15 @@ struct Component
 		float newWidth = relativeSize.x*parentSize.x + offsetSize.x;
 		float newHeight = relativeSize.y*parentSize.y + offsetSize.y;
 
-		float newX = parentPosition.x + (parentSize.x)*relativePosition.x - anchorPoint.x*newWidth + offsetPosition.x;
-		float newY = parentPosition.y + (parentSize.y)*relativePosition.y - anchorPoint.y*newHeight + offsetPosition.y;
+		screenSize = Vector2(newWidth, newHeight);
+		applySizeMode();
+
+		float newX = parentPosition.x + (parentSize.x)*relativePosition.x - anchorPoint.x*screenSize.x + offsetPosition.x;
+		float newY = parentPosition.y + (parentSize.y)*relativePosition.y - anchorPoint.y*screenSize.y + offsetPosition.y;
 
 		screenPosition = Vector2(newX, newY);
-		screenSize = Vector2(newWidth, newHeight);
+
+		applySizeMode();
 	}
 
 	virtual void doLayout(
@@ -286,7 +325,7 @@ struct DrawComponent : Component
 		const Vector2 oldScreenSize = screenSize;
 		const Vector2 oldScreenPosition = screenPosition;
 		doLayoutCommon(entities, parentPosition, parentSize);
-
+		printf("Component::doLayout %4.2f x %4.2f, %4.2f x %4.2f\n", screenPosition.x, screenPosition.y, screenSize.x, screenSize.y);
 		for (int32_t index = startIndex + 1; index <= endIndex; ++index)
 		{
 			Entity& entity = entities[index];
@@ -294,6 +333,7 @@ struct DrawComponent : Component
 			{
 				case Type::Circle:
 				case Type::Rectangle:
+				case Type::RoundedRectangle:
 				case Type::Text:
 				{
 					const Vector2& position = entity.coord1;
@@ -305,6 +345,7 @@ struct DrawComponent : Component
 					float newY = screenPosition.y + yPercentage*screenSize.y;
 
 					entity.coord1 = Vector2(newX, newY);
+					//printf("entity: %4.2f x %4.2f\n", newX, newY);
 
 					if (entities[index].type == Type::Text)
 					{
@@ -395,10 +436,13 @@ struct TextComponent : DrawComponent
 
 struct EntityGrid : DrawComponent
 {
+	Vector2Int matrixSize;
+
 	EntityGrid(
 		std::vector<Entity>& entities,
 		Vector2Int matrixSize)
 	: DrawComponent(entities)
+	, matrixSize(matrixSize)
 	{
 		float cellSpacing = 10.0f;
 		float padding = 2.0f;
@@ -412,11 +456,13 @@ struct EntityGrid : DrawComponent
 					3.0f,
 					1.0f,
 					0xFFFFFFFF,
-					0x55FFBBFF
+					0x55FFBB00
 				));
 			}
 		}
 		endIndex = entities.size() - 1;
+		screenSize = Vector2(matrixSize.x*cellSpacing, matrixSize.y*cellSpacing);
+		aspectRatio = (float)matrixSize.x/(float)matrixSize.y;
 	}
 };
 
