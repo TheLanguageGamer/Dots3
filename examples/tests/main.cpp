@@ -149,6 +149,74 @@ struct TestDraggable : Screen
 	}
 };
 
+// struct TextButton : DrawComponent
+// {
+// 	TextComponent(
+// 		std::vector<Entity>& entities,
+// 		const std::string& text,
+// 		uint32_t rgba,
+// 		float fontSize)
+// 	: DrawComponent(entities)
+// 	{
+// 		Entity textEntity = Entity::text(text, Vector2(), fontSize, rgba);
+// 		addEntity(entities, textEntity);
+// 		setOffsetSize(entities, textEntity.coord3);
+// 	}
+
+// 	void doLayoutEntities(
+// 		std::vector<Entity>& entities,
+// 		const Vector2& oldScreenPosition,
+// 		const Vector2& oldScreenSize) override
+// 	{
+// 		Entity& textEntity = entities[startIndex+1];
+// 		textEntity.coord1 = screenPosition;
+// 	}
+
+// 	void doLayout(
+// 		std::vector<Entity>& entities,
+// 		const Vector2& parentPosition,
+// 		const Vector2& parentSize) override
+// 	{
+// 		const Vector2 oldScreenSize = screenSize;
+// 		const Vector2 oldScreenPosition = screenPosition;
+// 		doLayoutCommon(entities, parentPosition, parentSize);
+// 		doLayoutEntities(entities, oldScreenPosition, oldScreenSize);
+// 		doLayoutChildren(entities);
+// 	}
+// };
+
+struct TestClickable : Screen
+{
+	TestClickable()
+	{
+		printf("initializing TestDraggable\n");
+		entities.push_back(Entity::fillCircle(Vector2(50.0f, 50.0f), 30.0f, 0xFFCCAAFF));
+		rootComponent = std::shared_ptr<struct Component>(new struct Component(entities));
+		rootComponent->setRelativeSize(entities, Vector2(1.0f, 1.0f));
+
+		auto button1 = std::shared_ptr<FillCircleComponent>(new FillCircleComponent(entities, 0xAACCFFFF));
+		button1->setRadius(entities, 50.0f, 0.0f);
+		button1->setRelativePosition(entities, Vector2(1.0f, 0.0f));
+		button1->setOffsetPosition(entities, Vector2(-100.0f, 100.0f));
+		button1->setAnchorPoint(entities, Vector2(0.5f, 0.5f));
+		button1->enableClicking([this, button1](){
+			printf("selecting!\n");
+			button1->setRadius(entities, 75.0f, 0.0f);
+			button1->relayout(entities);
+		}, [this, button1](){
+			printf("deselecting!\n");
+			button1->setRadius(entities, 50.0f, 0.0f);
+			button1->relayout(entities);
+		}, [this, button1](){
+			printf("click!\n");
+			button1->setColor(entities, 0x298347FF);
+			button1->relayout(entities);
+		});
+
+		rootComponent->addChild(button1);
+	}
+};
+
 std::function<void()> loop;
 void main_loop() { loop(); }
 
@@ -161,6 +229,7 @@ int main()
 	std::shared_ptr<Screen> testTextLabel = std::shared_ptr<Screen> (new TestTextLabel());
 	std::shared_ptr<Screen> testEntityGrid = std::shared_ptr<Screen> (new TestEntityGrid());
 	std::shared_ptr<Screen> testDraggable = std::shared_ptr<Screen> (new TestDraggable());
+	std::shared_ptr<Screen> testClickable = std::shared_ptr<Screen> (new TestClickable());
 	game.setScreen(testPrimitives);
 
 	int32_t mode = 0;
@@ -191,6 +260,11 @@ int main()
 				case 3:
 				{
 					game.setScreen(testDraggable);
+					break;
+				}
+				case 4:
+				{
+					game.setScreen(testClickable);
 					break;
 				}
 			}

@@ -209,6 +209,8 @@ struct Component
 	Vector2 anchorPoint;
 	Vector2 screenPosition;
 	Vector2 screenSize;
+	Vector2 cachedParentSize;
+	Vector2 cachedParentPosition;
 	float aspectRatio;
 	SizeMode sizeMode;
 
@@ -288,6 +290,11 @@ struct Component
 		return entities[startIndex].coord4;
 	}
 
+	void relayout(std::vector<Entity>& entities)
+	{
+		doLayout(entities, cachedParentPosition, cachedParentSize);
+	}
+
 	void applySizeMode()
 	{
 		switch (sizeMode)
@@ -318,13 +325,17 @@ struct Component
 		const Vector2& parentPosition,
 		const Vector2& parentSize)
 	{
+		cachedParentPosition = parentPosition;
+		cachedParentSize = parentSize;
 		const Vector2& relativeSize = getRelativeSize(entities);
 		const Vector2& offsetSize = getOffsetSize(entities);
 		const Vector2& relativePosition = getRelativePosition(entities);
 		const Vector2& offsetPosition = getOffsetPosition(entities);
+		printf("doLayoutCommon %4.2f x %4.2f, %4.2f x %4.2f, %4.2f x %4.2f\n", parentSize.x, parentSize.y, offsetSize.x, offsetSize.y, relativeSize.x, relativeSize.y);
 
 		float newWidth = relativeSize.x*parentSize.x + offsetSize.x;
 		float newHeight = relativeSize.y*parentSize.y + offsetSize.y;
+		printf("new: %4.2f x %4.2f\n", newWidth, newHeight);
 
 		screenSize = Vector2(newWidth, newHeight);
 		applySizeMode();
@@ -389,7 +400,7 @@ struct Component
 		std::function<void()> inOnDeselect,
 		std::function<void()> inOnClick)
 	{
-		onSelect = inOnDeselect;
+		onSelect = inOnSelect;
 		onDeselect = inOnDeselect;
 		onClick = inOnClick;
 		isClickable = true;
@@ -589,11 +600,18 @@ struct FillCircleComponent : DrawComponent
 		setOffsetSize(entities, Vector2(offset*2.0f, offset*2.0f));
 	}
 
+	void setColor(std::vector<Entity>& entities, uint32_t rgba)
+	{
+		entities[startIndex+1].id1 = rgba;
+	}
+
 	void doLayoutEntities(
 		std::vector<Entity>& entities,
 		const Vector2& oldScreenPosition,
 		const Vector2& oldScreenSize) override
 	{
+		printf("FillCircleComponent cached %4.2f x %4.2f, %4.2f x %4.2f\n",
+			cachedParentPosition.x, cachedParentPosition.y, cachedParentSize.x, cachedParentSize.y);
 		Entity& circle = entities[startIndex+1];
 		//circle.coord1 = Vector2(screenPosition.x - anchorPoint.x*radius*2.0f, screenPosition.y - anchorPoint.y*radius*2.0f);
 		circle.coord1 = screenPosition;
