@@ -19,6 +19,7 @@ extern "C"
 	extern void Engine_FillPage();
 	extern void Engine_Init();
 	extern void Engine_FilledEllipse(float x, float y, float width, float height, uint32_t rgba);
+	extern void Engine_StrokeEllipse(float x, float y, float width, float height, float thickness, uint32_t rgba);
 	extern void Engine_FilledRectangle(float x, float y, float width, float height, uint32_t rgba);
 	extern void Engine_FilledText(const char* text, float x, float y, float fontSize, uint32_t rgba);
 	extern float Engine_MeasureTextWidth(const char* text, float fontSize);
@@ -34,7 +35,8 @@ enum Type
 {
 	None,
 	Component,
-	Circle,
+	FillCircle,
+	StrokeCircle,
 	Rectangle,
 	RoundedRectangle,
 	Text,
@@ -128,15 +130,30 @@ struct Entity
 		return entity;
 	}
 
-	static Entity circle(
+	static Entity fillCircle(
 		const Vector2& position,
 		float radius,
 		uint32_t rgba)
 	{
 		Entity entity;
-		entity.type = Type::Circle;
+		entity.type = Type::FillCircle;
 		entity.coord1 = position;
 		entity.coord3 = Vector2(radius, radius);
+		entity.id1 = rgba;
+		return entity;
+	}
+
+	static Entity strokeCircle(
+		const Vector2& position,
+		float radius,
+		float thickness,
+		uint32_t rgba)
+	{
+		Entity entity;
+		entity.type = Type::StrokeCircle;
+		entity.coord1 = position;
+		entity.coord3 = Vector2(radius, radius);
+		entity.coord4 = Vector2(thickness, 0.0f);
 		entity.id1 = rgba;
 		return entity;
 	}
@@ -199,6 +216,12 @@ struct Component
 	bool isDragging;
 	std::function<void(Vector2& offsetPosition)> clampOffset;
 
+	bool isClickable;
+	bool isSelected;
+	std::function<void()> onSelect;
+	std::function<void()> onDeselect;
+	std::function<void()> onClick;
+
 	std::vector<std::shared_ptr<Component>> children;
 	Component(std::vector<Entity>& entities)
 	: startIndex(entities.size())
@@ -207,6 +230,8 @@ struct Component
 	, sizeMode(SizeMode_Normal)
 	, isDraggable(false)
 	, isDragging(false)
+	, isClickable(false)
+	, isSelected(false)
 	{
 		addEntity(entities, Entity::component());
 	}
@@ -359,6 +384,17 @@ struct Component
 		doLayoutChildren(entities);
 	}
 
+	void enableClicking(
+		std::function<void()> inOnSelect,
+		std::function<void()> inOnDeselect,
+		std::function<void()> inOnClick)
+	{
+		onSelect = inOnDeselect;
+		onDeselect = inOnDeselect;
+		onClick = inOnClick;
+		isClickable = true;
+	}
+
 	bool onMouseMove(std::vector<Entity>& entities, const Vector2& position, const Vector2& delta)
 	{
 		if (isDragging)
@@ -379,10 +415,20 @@ struct Component
 
 	bool onMouseButton1Down(std::vector<Entity>& entities, const Vector2& position)
 	{
+		if (isClickable && doesPointIntersectRect(position, screenPosition, screenSize))
+		{
+			isSelected = true;
+			if (onSelect)
+			{
+				onSelect();
+			}
+			return true;
+		}
 		if (isDraggable && doesPointIntersectRect(position, screenPosition, screenSize))
 		{
 			printf("made draggable\n");
 			isDragging = true;
+			return true;
 		}
 
 		for (int32_t i = children.size()-1; i >= 0; --i)
@@ -398,9 +444,23 @@ struct Component
 
 	bool onMouseButton1Up(std::vector<Entity>& entities, const Vector2& position)
 	{
+		if (isClickable && isSelected)
+		{
+			isSelected = false;
+			if (onDeselect)
+			{
+				onDeselect();
+			}
+			if (onClick && doesPointIntersectRect(position, screenPosition, screenSize))
+			{
+				onClick();
+			}
+			return true;
+		}
 		if (isDraggable && isDragging)
 		{
 			isDragging = false;
+			return true;
 		}
 
 		for (int32_t i = children.size()-1; i >= 0; --i)
@@ -434,7 +494,8 @@ struct DrawComponent : Component
 			Entity& entity = entities[index];
 			switch (entity.type)
 			{
-				case Type::Circle:
+				case Type::FillCircle:
+				case Type::StrokeCircle:
 				case Type::Rectangle:
 				case Type::RoundedRectangle:
 				case Type::Text:
@@ -499,6 +560,83 @@ struct RectangleComponent : DrawComponent
 		Entity& rectangle = entities[startIndex+1];
 		rectangle.coord1 = screenPosition;
 		rectangle.coord3 = screenSize;
+	}
+
+	void doLayout(
+		std::vector<Entity>& entities,
+		const Vector2& parentPosition,
+		const Vector2& parentSize) override
+	{
+		const Vector2 oldScreenSize = screenSize;
+		const Vector2 oldScreenPosition = screenPosition;
+		doLayoutCommon(entities, parentPosition, parentSize);
+		doLayoutEntities(entities, oldScreenPosition, oldScreenSize);
+		doLayoutChildren(entities);
+	}
+};
+
+struct FillCircleComponent : DrawComponent
+{
+	FillCircleComponent(std::vector<Entity>& entities, uint32_t rgba)
+	: DrawComponent(entities)
+	{
+		addEntity(entities, Entity::fillCircle(Vector2(), 0.0f, rgba));
+	}
+
+	void setRadius(std::vector<Entity>& entities, float offset, float relative)
+	{
+		setRelativeSize(entities, Vector2(relative*2.0f, relative*2.0f));
+		setOffsetSize(entities, Vector2(offset*2.0f, offset*2.0f));
+	}
+
+	void doLayoutEntities(
+		std::vector<Entity>& entities,
+		const Vector2& oldScreenPosition,
+		const Vector2& oldScreenSize) override
+	{
+		Entity& circle = entities[startIndex+1];
+		//circle.coord1 = Vector2(screenPosition.x - anchorPoint.x*radius*2.0f, screenPosition.y - anchorPoint.y*radius*2.0f);
+		circle.coord1 = screenPosition;
+		circle.coord3 = Vector2(screenSize.x/2.0f, screenSize.y/2.0f);
+		printf("FillCircleComponent doLayoutEntities %4.2f x %4.2f\n", screenPosition.x, screenPosition.y);
+	}
+
+	void doLayout(
+		std::vector<Entity>& entities,
+		const Vector2& parentPosition,
+		const Vector2& parentSize) override
+	{
+		const Vector2 oldScreenSize = screenSize;
+		const Vector2 oldScreenPosition = screenPosition;
+		doLayoutCommon(entities, parentPosition, parentSize);
+		doLayoutEntities(entities, oldScreenPosition, oldScreenSize);
+		doLayoutChildren(entities);
+	}
+};
+struct StrokeCircleComponent : DrawComponent
+{
+	StrokeCircleComponent(std::vector<Entity>& entities, float radius, float thickness, uint32_t rgba)
+	: DrawComponent(entities)
+	{
+		addEntity(entities, Entity::strokeCircle(Vector2(), 0.0f, thickness, rgba));
+	}
+
+	void setRadius(std::vector<Entity>& entities, float offset, float relative)
+	{
+		setRelativeSize(entities, Vector2(relative*2.0f, relative*2.0f));
+		setOffsetSize(entities, Vector2(offset*2.0f, offset*2.0f));
+	}
+
+	void doLayoutEntities(
+		std::vector<Entity>& entities,
+		const Vector2& oldScreenPosition,
+		const Vector2& oldScreenSize) override
+	{
+		Entity& circle = entities[startIndex+1];
+		//circle.coord1 = Vector2(screenPosition.x - anchorPoint.x*radius*2.0f, screenPosition.y - anchorPoint.y*radius*2.0f);
+		circle.coord1 = screenPosition;
+		circle.coord3 = Vector2(screenSize.x/2.0f, screenSize.y/2.0f);
+		printf("StrokeCircleComponent doLayoutEntities %4.2f x %4.2f\n", screenPosition.x, screenPosition.y);
 	}
 
 	void doLayout(
@@ -694,13 +832,24 @@ struct Game
 			const Entity& entity = entities[i];
 			switch (entity.type)
 			{
-				case Type::Circle:
+				case Type::FillCircle:
 				{
 					Engine_FilledEllipse(
 						entity.coord1.x + entity.coord3.x,
 						entity.coord1.y + entity.coord3.y,
 						entity.coord3.x,
 						entity.coord3.y,
+						entity.id1);
+					break;
+				}
+				case Type::StrokeCircle:
+				{
+					Engine_StrokeEllipse(
+						entity.coord1.x + entity.coord3.x,
+						entity.coord1.y + entity.coord3.y,
+						entity.coord3.x,
+						entity.coord3.y,
+						entity.coord4.x,
 						entity.id1);
 					break;
 				}

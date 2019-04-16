@@ -5,9 +5,9 @@ struct TestPrimitives : Screen
 	TestPrimitives()
 	{
 		printf("initializing TestPrimitives\n");
-		entities.push_back(Entity::circle(Vector2(50.0f, 50.0f), 30.0f, 0xFF88AAFF));
+		entities.push_back(Entity::fillCircle(Vector2(50.0f, 50.0f), 30.0f, 0xFF88AAFF));
 		entities.push_back(Entity::rectangle(Vector2(150.0f, 50.0f), Vector2(40.0f, 80.0f), 0xBB88FFFF));
-		//entities.push_back(Entity::circle(Vector2(50.0f, 150.0f), 2.0f, 0x999999FF));
+		//entities.push_back(Entity::fillCircle(Vector2(50.0f, 150.0f), 2.0f, 0x999999FF));
 		for (int32_t i = 1; i <= 5; ++i)
 		{
 			Entity textEntity = Entity::text(
@@ -41,7 +41,7 @@ struct TestTextLabel : Screen
 	TestTextLabel()
 	{
 		printf("initializing TestTextLabel\n");
-		entities.push_back(Entity::circle(Vector2(50.0f, 50.0f), 30.0f, 0x99FF99FF));
+		entities.push_back(Entity::fillCircle(Vector2(50.0f, 50.0f), 30.0f, 0x99FF99FF));
 		rootComponent = std::shared_ptr<struct Component>(new RectangleComponent(entities, 0xFFFFFFFF));
 		rootComponent->setRelativeSize(entities, Vector2(0.5f, 0.5f));
 		rootComponent->setRelativePosition(entities, Vector2(0.5f, 0.5f));
@@ -77,7 +77,7 @@ struct TestEntityGrid : Screen
 	TestEntityGrid()
 	{
 		printf("initializing TestEntityGrid\n");
-		entities.push_back(Entity::circle(Vector2(50.0f, 50.0f), 30.0f, 0x66AAFFFF));
+		entities.push_back(Entity::fillCircle(Vector2(50.0f, 50.0f), 30.0f, 0x66AAFFFF));
 		rootComponent = std::shared_ptr<struct Component>(new EntityGrid(
 			entities,
 			Vector2Int(20, 30)
@@ -95,7 +95,7 @@ struct TestDraggable : Screen
 	TestDraggable()
 	{
 		printf("initializing TestDraggable\n");
-		entities.push_back(Entity::circle(Vector2(50.0f, 50.0f), 30.0f, 0xFF00FFFF));
+		entities.push_back(Entity::fillCircle(Vector2(50.0f, 50.0f), 30.0f, 0xFF00FFFF));
 		rootComponent = std::shared_ptr<struct Component>(new struct Component(entities));
 		rootComponent->setRelativeSize(entities, Vector2(1.0f, 1.0f));
 
@@ -121,10 +121,16 @@ struct TestDraggable : Screen
 			offsetPosition.x = 0;
 		});
 
-		auto dragCircle = std::shared_ptr<struct Component>(new RectangleComponent(entities, 0xAACCFFFF));
+		auto ring = std::shared_ptr<StrokeCircleComponent>(new StrokeCircleComponent(entities, 150.0f, 5.0f, 0xAACCFFFF));
+		ring->setRadius(entities, 150.0f, 0.0f);
+		ring->setRelativePosition(entities, Vector2(0.5f, 0.5f));
+		ring->setAnchorPoint(entities, Vector2(0.5f, 0.5f));
+
+		auto dragCircle = std::shared_ptr<FillCircleComponent>(new FillCircleComponent(entities, 0xAACCFFFF));
+		dragCircle->setRadius(entities, 50.0f, 0.0f);
 		dragCircle->setRelativePosition(entities, Vector2(0.5f, 0.5f));
 		dragCircle->setAnchorPoint(entities, Vector2(0.5f, 0.5f));
-		dragCircle->setOffsetSize(entities, Vector2(80.0f, 80.0f));
+		//dragCircle->setOffsetSize(entities, Vector2(100.0f, 100.0f));
 		dragCircle->setOffsetPosition(entities, Vector2(0.0f, 150.0f));
 		dragCircle->enableDragging([](Vector2& offsetPosition){
 			float r = 150.0f;
@@ -132,12 +138,13 @@ struct TestDraggable : Screen
 			float y = offsetPosition.y;
 			offsetPosition.x = r*x/sqrtf(x*x+y*y);
 			offsetPosition.y = r*y/sqrtf(x*x+y*y);
-			//printf("clamped position: %4.2f x %4.2f\n", offsetPosition.x, offsetPosition.y);
+			printf("clamped position: %4.2f x %4.2f\n", offsetPosition.x, offsetPosition.y);
 		});
 
 		rootComponent->addChild(dragAnywhere);
 		rootComponent->addChild(dragHorizontal);
 		rootComponent->addChild(dragVertical);
+		rootComponent->addChild(ring);
 		rootComponent->addChild(dragCircle);
 	}
 };
@@ -149,7 +156,7 @@ int main()
 {
 	printf("jhelms\n");
 	Game game;
-	//game.entities.push_back(Entity::circle(Vector2(50.0f, 50.0f), 30.0f, 0xFF88AAFF));
+	//game.entities.push_back(Entity::fillCircle(Vector2(50.0f, 50.0f), 30.0f, 0xFF88AAFF));
 	std::shared_ptr<Screen> testPrimitives = std::shared_ptr<Screen>(new TestPrimitives());
 	std::shared_ptr<Screen> testTextLabel = std::shared_ptr<Screen> (new TestTextLabel());
 	std::shared_ptr<Screen> testEntityGrid = std::shared_ptr<Screen> (new TestEntityGrid());

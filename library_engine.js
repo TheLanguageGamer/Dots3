@@ -59,6 +59,14 @@ var LibraryEngine = {
 			Engine.ctx.ellipse(x, y, width, height, 0, 0, 2*Math.PI);
 			Engine.ctx.fill();
 		},
+		strokeEllipse: function(x, y, width, height, thickness, rgba) {
+			Engine.ctx.globalAlpha = (rgba & 0xff) / 255;
+			Engine.ctx.strokeStyle = Engine.translateColorToCSSRGB(rgba);
+			Engine.ctx.lineWidth = thickness;
+			Engine.ctx.beginPath();
+			Engine.ctx.ellipse(x, y, width, height, 0, 0, 2*Math.PI);
+			Engine.ctx.stroke();
+		},
 		filledRectangle: function(x, y, width, height, rgba) {
 			Engine.ctx.globalAlpha = (rgba & 0xff) / 255;
 			Engine.ctx.fillStyle = Engine.translateColorToCSSRGB(rgba);
@@ -126,6 +134,10 @@ var LibraryEngine = {
 
 	Engine_FilledEllipse: function(x, y, width, height, rgba) {
 		Engine.filledEllipse(x, y, width, height, rgba);
+	},
+
+	Engine_StrokeEllipse: function(x, y, width, height, thickness, rgba) {
+		Engine.strokeEllipse(x, y, width, height, thickness, rgba);
 	},
 
 	Engine_FilledRectangle: function(x, y, width, height, rgba) {
