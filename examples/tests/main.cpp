@@ -96,11 +96,49 @@ struct TestDraggable : Screen
 	{
 		printf("initializing TestDraggable\n");
 		entities.push_back(Entity::circle(Vector2(50.0f, 50.0f), 30.0f, 0xFF00FFFF));
-		rootComponent = std::shared_ptr<struct Component>(new RectangleComponent(entities, 0xFFFFFFFF));
-		rootComponent->setRelativePosition(entities, Vector2(0.5f, 0.5f));
-		rootComponent->setAnchorPoint(entities, Vector2(0.5f, 0.5f));
-		rootComponent->setOffsetSize(entities, Vector2(80.0f, 80.0f));
-		rootComponent->isDraggable = true;
+		rootComponent = std::shared_ptr<struct Component>(new struct Component(entities));
+		rootComponent->setRelativeSize(entities, Vector2(1.0f, 1.0f));
+
+		auto dragAnywhere = std::shared_ptr<struct Component>(new RectangleComponent(entities, 0xFFFFFFFF));
+		dragAnywhere->setRelativePosition(entities, Vector2(0.85f, 0.85f));
+		dragAnywhere->setAnchorPoint(entities, Vector2(0.5f, 0.5f));
+		dragAnywhere->setOffsetSize(entities, Vector2(80.0f, 80.0f));
+		dragAnywhere->enableDragging(nullptr);
+
+		auto dragHorizontal = std::shared_ptr<struct Component>(new RectangleComponent(entities, 0xAAFFCCFF));
+		dragHorizontal->setRelativePosition(entities, Vector2(0.25f, 0.25f));
+		dragHorizontal->setAnchorPoint(entities, Vector2(0.5f, 0.5f));
+		dragHorizontal->setOffsetSize(entities, Vector2(80.0f, 80.0f));
+		dragHorizontal->enableDragging([](Vector2& offsetPosition){
+			offsetPosition.y = 0;
+		});
+
+		auto dragVertical = std::shared_ptr<struct Component>(new RectangleComponent(entities, 0xAACCFFFF));
+		dragVertical->setRelativePosition(entities, Vector2(0.25f, 0.75f));
+		dragVertical->setAnchorPoint(entities, Vector2(0.5f, 0.5f));
+		dragVertical->setOffsetSize(entities, Vector2(80.0f, 80.0f));
+		dragVertical->enableDragging([](Vector2& offsetPosition){
+			offsetPosition.x = 0;
+		});
+
+		auto dragCircle = std::shared_ptr<struct Component>(new RectangleComponent(entities, 0xAACCFFFF));
+		dragCircle->setRelativePosition(entities, Vector2(0.5f, 0.5f));
+		dragCircle->setAnchorPoint(entities, Vector2(0.5f, 0.5f));
+		dragCircle->setOffsetSize(entities, Vector2(80.0f, 80.0f));
+		dragCircle->setOffsetPosition(entities, Vector2(0.0f, 150.0f));
+		dragCircle->enableDragging([](Vector2& offsetPosition){
+			float r = 150.0f;
+			float x = offsetPosition.x;
+			float y = offsetPosition.y;
+			offsetPosition.x = r*x/sqrtf(x*x+y*y);
+			offsetPosition.y = r*y/sqrtf(x*x+y*y);
+			//printf("clamped position: %4.2f x %4.2f\n", offsetPosition.x, offsetPosition.y);
+		});
+
+		rootComponent->addChild(dragAnywhere);
+		rootComponent->addChild(dragHorizontal);
+		rootComponent->addChild(dragVertical);
+		rootComponent->addChild(dragCircle);
 	}
 };
 

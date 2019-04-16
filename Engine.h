@@ -197,6 +197,7 @@ struct Component
 
 	bool isDraggable;
 	bool isDragging;
+	std::function<void(Vector2& offsetPosition)> clampOffset;
 
 	std::vector<std::shared_ptr<Component>> children;
 	Component(std::vector<Entity>& entities)
@@ -336,12 +337,24 @@ struct Component
 
 	}
 
+	void enableDragging(std::function<void(Vector2& offsetPosition)> inClampOffset)
+	{
+		clampOffset = inClampOffset;
+		isDraggable = true;
+	}
+
 	void onDrag(std::vector<Entity>& entities, const Vector2& delta)
 	{
 		const Vector2& offsetPosition = getOffsetPosition(entities);
-		setOffsetPosition(entities, Vector2(offsetPosition.x + delta.x, offsetPosition.y + delta.y));
+		Vector2 newOffsetPosition = Vector2(offsetPosition.x + delta.x, offsetPosition.y + delta.y);
+		if (clampOffset)
+		{
+			clampOffset(newOffsetPosition);
+		}
+		const Vector2 impliedDelta(newOffsetPosition.x - offsetPosition.x, newOffsetPosition.y - offsetPosition.y);
+		setOffsetPosition(entities, newOffsetPosition);
 		const Vector2 oldScreenPosition = screenPosition;
-		screenPosition = Vector2(screenPosition.x + delta.x, screenPosition.y + delta.y);
+		screenPosition = Vector2(screenPosition.x + impliedDelta.x, screenPosition.y + impliedDelta.y);
 		doLayoutEntities(entities, oldScreenPosition, screenSize);
 		doLayoutChildren(entities);
 	}
