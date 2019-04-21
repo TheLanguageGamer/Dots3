@@ -42,33 +42,37 @@ struct TestTextLabel : Screen
 	{
 		printf("initializing TestTextLabel\n");
 		entities.push_back(Entity::fillCircle(Vector2(50.0f, 50.0f), 30.0f, 0x99FF99FF));
+		printf("1\n");
 		rootComponent = std::shared_ptr<struct Component>(new RectangleComponent(entities, 0xFFFFFFFF));
+		printf("2\n");
 		rootComponent->setRelativeSize(entities, Vector2(0.5f, 0.5f));
 		rootComponent->setRelativePosition(entities, Vector2(0.5f, 0.5f));
 		rootComponent->setAnchorPoint(entities, Vector2(0.5f, 0.5f));
 
+		printf("3\n");
+
 		auto ulText = std::shared_ptr<struct Component>(new TextComponent(entities, "Hello World!", 0x0000FFFF, 20.0f));
-		rootComponent->addChild(ulText);
+		rootComponent->addChild(entities, ulText);
 
 		auto urText = std::shared_ptr<struct Component>(new TextComponent(entities, "Hello World!", 0x0000FFFF, 20.0f));
 		urText->setRelativePosition(entities, Vector2(1.0f, 0.0f));
 		urText->setAnchorPoint(entities, Vector2(1.0f, 0.0f));
-		rootComponent->addChild(urText);
+		rootComponent->addChild(entities, urText);
 
 		auto blText = std::shared_ptr<struct Component>(new TextComponent(entities, "Hello World!", 0x0000FFFF, 20.0f));
 		blText->setRelativePosition(entities, Vector2(0.0f, 1.0f));
 		blText->setAnchorPoint(entities, Vector2(0.0f, 1.0f));
-		rootComponent->addChild(blText);
+		rootComponent->addChild(entities, blText);
 
 		auto brText = std::shared_ptr<struct Component>(new TextComponent(entities, "Hello World!", 0x0000FFFF, 20.0f));
 		brText->setRelativePosition(entities, Vector2(1.0f, 1.0f));
 		brText->setAnchorPoint(entities, Vector2(1.0f, 1.0f));
-		rootComponent->addChild(brText);
+		rootComponent->addChild(entities, brText);
 
 		auto cText = std::shared_ptr<struct Component>(new TextComponent(entities, "Hello World!", 0x0000FFFF, 20.0f));
 		cText->setRelativePosition(entities, Vector2(0.5f, 0.5f));
 		cText->setAnchorPoint(entities, Vector2(0.5f, 0.5f));
-		rootComponent->addChild(cText);
+		rootComponent->addChild(entities, cText);
 	}
 };
 
@@ -141,49 +145,52 @@ struct TestDraggable : Screen
 			printf("clamped position: %4.2f x %4.2f\n", offsetPosition.x, offsetPosition.y);
 		});
 
-		rootComponent->addChild(dragAnywhere);
-		rootComponent->addChild(dragHorizontal);
-		rootComponent->addChild(dragVertical);
-		rootComponent->addChild(ring);
-		rootComponent->addChild(dragCircle);
+		rootComponent->addChild(entities, dragAnywhere);
+		rootComponent->addChild(entities, dragHorizontal);
+		rootComponent->addChild(entities, dragVertical);
+		rootComponent->addChild(entities, ring);
+		rootComponent->addChild(entities, dragCircle);
 	}
 };
 
-// struct TextButton : DrawComponent
-// {
-// 	TextComponent(
-// 		std::vector<Entity>& entities,
-// 		const std::string& text,
-// 		uint32_t rgba,
-// 		float fontSize)
-// 	: DrawComponent(entities)
-// 	{
-// 		Entity textEntity = Entity::text(text, Vector2(), fontSize, rgba);
-// 		addEntity(entities, textEntity);
-// 		setOffsetSize(entities, textEntity.coord3);
-// 	}
+struct CustomButton : Component
+{
+	std::function<void(const Vector2&, CustomButton*)> inOnClick;
 
-// 	void doLayoutEntities(
-// 		std::vector<Entity>& entities,
-// 		const Vector2& oldScreenPosition,
-// 		const Vector2& oldScreenSize) override
-// 	{
-// 		Entity& textEntity = entities[startIndex+1];
-// 		textEntity.coord1 = screenPosition;
-// 	}
+	CustomButton(std::vector<Entity>& entities, std::function<void(const Vector2&, CustomButton*)> inOnClick)
+	: Component(entities)
+	, inOnClick(inOnClick)
+	{
+		auto bg = std::shared_ptr<RoundedRectangleComponent>(new RoundedRectangleComponent(
+			entities, 10.0f, 2.0f, 0xAAAAAAFF, 0xFFFFFFFF));
+		bg->setRelativePosition(entities, Vector2(0.0f, 0.0f));
+		bg->setRelativeSize(entities, Vector2(1.0f, 1.0f));
 
-// 	void doLayout(
-// 		std::vector<Entity>& entities,
-// 		const Vector2& parentPosition,
-// 		const Vector2& parentSize) override
-// 	{
-// 		const Vector2 oldScreenSize = screenSize;
-// 		const Vector2 oldScreenPosition = screenPosition;
-// 		doLayoutCommon(entities, parentPosition, parentSize);
-// 		doLayoutEntities(entities, oldScreenPosition, oldScreenSize);
-// 		doLayoutChildren(entities);
-// 	}
-// };
+		auto fg = std::shared_ptr<RoundedRectangleComponent>(new RoundedRectangleComponent(
+			entities, 10.0f, 2.0f, 0xAAAAAAFF, 0xFFFFFFFF));
+		fg->setRelativePosition(entities, Vector2(0.0f, 0.0f));
+		fg->setRelativeSize(entities, Vector2(1.0f, 1.0f));
+		fg->setOffsetPosition(entities, Vector2(5.0f, 5.0f));
+
+		enableClicking([&entities, fg](){
+			printf("selecting!\n");
+			fg->setOffsetPosition(entities, Vector2(2.0f, 2.0f));
+			fg->relayout(entities);
+		}, [&entities, fg](){
+			printf("deselecting!\n");
+			fg->setOffsetPosition(entities, Vector2(5.0f, 5.0f));
+			fg->relayout(entities);
+		}, [this](const Vector2& position){
+			if (this->inOnClick)
+			{
+				this->inOnClick(position, this);
+			}
+		});
+
+		addChild(entities, bg);
+		addChild(entities, fg);
+	}
+};
 
 struct TestClickable : Screen
 {
@@ -207,13 +214,75 @@ struct TestClickable : Screen
 			printf("deselecting!\n");
 			button1->setRadius(entities, 50.0f, 0.0f);
 			button1->relayout(entities);
-		}, [this, button1](){
+		}, [this, button1](const Vector2&){
 			printf("click!\n");
 			button1->setColor(entities, 0x298347FF);
 			button1->relayout(entities);
 		});
 
-		rootComponent->addChild(button1);
+		auto button2 = std::shared_ptr<RoundedRectangleComponent>(new RoundedRectangleComponent(
+			entities, 10.0f, 5.0f, 0xFFFFFFFF, 0x33CC00FF));
+		button2->setOffsetSize(entities, Vector2(150.0f, 80.0f));
+		button2->setRelativePosition(entities, Vector2(1.0f, 0.0f));
+		button2->setOffsetPosition(entities, Vector2(-200.0f, 300.0f));
+		button2->setAnchorPoint(entities, Vector2(0.0f, 0.5f));
+		button2->enableClicking([this, button2](){
+			printf("selecting!\n");
+			button2->setOffsetSize(entities, Vector2(250.0f, 80.0f));
+			button2->relayout(entities);
+		}, [this, button2](){
+			printf("deselecting!\n");
+			button2->setOffsetSize(entities, Vector2(150.0f, 80.0f));
+			button2->relayout(entities);
+		}, [this, button2](const Vector2&){
+			printf("click!\n");
+			button2->setFillColor(entities, 0x298347FF);
+			button2->relayout(entities);
+		});
+
+		auto button3 = std::shared_ptr<CustomButton>(new CustomButton(entities, nullptr));
+		button3->setOffsetSize(entities, Vector2(150.0f, 80.0f));
+		button3->setRelativePosition(entities, Vector2(0.5f, 0.5f));
+		button3->setAnchorPoint(entities, Vector2(0.5f, 0.5f));
+
+		rootComponent->addChild(entities, button1);
+		rootComponent->addChild(entities, button2);
+		rootComponent->addChild(entities, button3);
+	}
+};
+
+struct TestPooling : Screen
+{
+	std::shared_ptr<FixedCapacityPool> pool;
+	TestPooling()
+	{
+		printf("initializing TestPooling\n");
+
+		entities.push_back(Entity::fillCircle(Vector2(50.0f, 50.0f), 30.0f, 0x990000FF));
+		rootComponent = std::shared_ptr<struct Component>(new struct Component(entities));
+		rootComponent->setRelativeSize(entities, Vector2(1.0f, 1.0f));
+
+		pool.reset(new FixedCapacityPool(
+			entities,
+			5,
+			rootComponent,
+			[this](){
+				return new CustomButton(entities, [this](const Vector2&, CustomButton* button){
+					button->disable(entities);
+				});
+			}
+		));
+
+		rootComponent->enableClicking(nullptr, nullptr, [this](const Vector2& position){
+			printf("Click! %4.2f x %4.2f\n", position.x, position.y);
+			if (auto button = pool->get(entities))
+			{
+				button->setOffsetSize(entities, Vector2(150.0f, 80.0f));
+				button->setAnchorPoint(entities, Vector2(0.5f, 0.5f));
+				button->setOffsetPosition(entities, position);
+				button->relayout(entities);
+			}
+		});
 	}
 };
 
@@ -230,6 +299,7 @@ int main()
 	std::shared_ptr<Screen> testEntityGrid = std::shared_ptr<Screen> (new TestEntityGrid());
 	std::shared_ptr<Screen> testDraggable = std::shared_ptr<Screen> (new TestDraggable());
 	std::shared_ptr<Screen> testClickable = std::shared_ptr<Screen> (new TestClickable());
+	std::shared_ptr<Screen> testPooling = std::shared_ptr<Screen> (new TestPooling());
 	game.setScreen(testPrimitives);
 
 	int32_t mode = 0;
@@ -265,6 +335,11 @@ int main()
 				case 4:
 				{
 					game.setScreen(testClickable);
+					break;
+				}
+				case 5:
+				{
+					game.setScreen(testPooling);
 					break;
 				}
 			}

@@ -94,6 +94,7 @@ struct Entity
 	Entity()
 	: id1(0)
 	, id2(0)
+	, id3(0)
 	, type(Type::None) {}
 
 	static uint32_t getIdForText(const std::string& text)
@@ -189,10 +190,12 @@ struct Entity
 		return entity;
 	}
 
-	static Entity component()
+	static Entity component(uint32_t startIndex)
 	{
 		Entity entity;
 		entity.type = Type::Component;
+		entity.id1 = startIndex;
+		entity.id3 = 1;
 		return entity;
 	}
 };
@@ -204,8 +207,8 @@ struct Component
 		SizeMode_Normal,
 		SizeMode_FixedAspectRatio,
 	};
-	int32_t startIndex;
-	int32_t endIndex;
+	int32_t _startIndex;
+	// int32_t endIndex;
 	Vector2 anchorPoint;
 	Vector2 screenPosition;
 	Vector2 screenSize;
@@ -222,12 +225,12 @@ struct Component
 	bool isSelected;
 	std::function<void()> onSelect;
 	std::function<void()> onDeselect;
-	std::function<void()> onClick;
+	std::function<void(const Vector2&)> onClick;
 
 	std::vector<std::shared_ptr<Component>> children;
 	Component(std::vector<Entity>& entities)
-	: startIndex(entities.size())
-	, endIndex(entities.size())
+	: _startIndex(entities.size())
+	// , endIndex(entities.size())
 	, aspectRatio(0.0f)
 	, sizeMode(SizeMode_Normal)
 	, isDraggable(false)
@@ -235,38 +238,71 @@ struct Component
 	, isClickable(false)
 	, isSelected(false)
 	{
-		addEntity(entities, Entity::component());
+		_startIndex = entities.size();
+		entities.push_back(Entity::component(_startIndex));
+		setEndIndex(entities, entities.size()-1);
+		//printf("Component initialized3: %d -> %d\n", getStartIndex(entities), getEndIndex(entities));
+	}
+
+	uint32_t getStartIndex(std::vector<Entity>& entities)
+	{
+		return entities[_startIndex].id1;
+	}
+
+	uint32_t getEndIndex(std::vector<Entity>& entities)
+	{
+		return entities[_startIndex].id2;
+	}
+
+	void setEndIndex(std::vector<Entity>& entities, uint32_t endIndex)
+	{
+		entities[_startIndex].id2 = endIndex;
+	}
+
+	bool isEnabled(std::vector<Entity>& entities)
+	{
+		return entities[_startIndex].id3 != 0;
+	}
+
+	void enable(std::vector<Entity>& entities)
+	{
+		entities[_startIndex].id3 = 1;
+	}
+
+	void disable(std::vector<Entity>& entities)
+	{
+		entities[_startIndex].id3 = 0;
 	}
 
 	void addEntity(std::vector<Entity>& entities, const Entity& entity)
 	{
 		//assert entities.size() == endIndex + 1
-		endIndex = entities.size();
+		setEndIndex(entities, entities.size());
 		entities.push_back(entity);
 	}
 
-	virtual void addChild(std::shared_ptr<Component> child)
+	virtual void addChild(std::vector<Entity>& entities, std::shared_ptr<Component> child)
 	{
 		//assert child.startIndex == this->endIndex + 1;
-		endIndex = child->endIndex;
+		setEndIndex(entities, child->getEndIndex(entities));
 		children.push_back(child);
 	}
 
 	void setRelativePosition(std::vector<Entity>& entities, const Vector2& position)
 	{
-		entities[startIndex].coord1 = position;
+		entities[_startIndex].coord1 = position;
 	}
 	void setRelativeSize(std::vector<Entity>& entities, const Vector2& size)
 	{
-		entities[startIndex].coord2 = size;
+		entities[_startIndex].coord2 = size;
 	}
 	void setOffsetPosition(std::vector<Entity>& entities, const Vector2& position)
 	{
-		entities[startIndex].coord3 = position;
+		entities[_startIndex].coord3 = position;
 	}
 	void setOffsetSize(std::vector<Entity>& entities, const Vector2& size)
 	{
-		entities[startIndex].coord4 = size;
+		entities[_startIndex].coord4 = size;
 	}
 	void setAnchorPoint(std::vector<Entity>& entities, const Vector2& newAnchorPoint)
 	{
@@ -275,19 +311,19 @@ struct Component
 
 	const Vector2& getRelativePosition(std::vector<Entity>& entities)
 	{
-		return entities[startIndex].coord1;
+		return entities[_startIndex].coord1;
 	}
 	const Vector2& getRelativeSize(std::vector<Entity>& entities)
 	{
-		return entities[startIndex].coord2;
+		return entities[_startIndex].coord2;
 	}
 	const Vector2& getOffsetPosition(std::vector<Entity>& entities)
 	{
-		return entities[startIndex].coord3;
+		return entities[_startIndex].coord3;
 	}
 	const Vector2& getOffsetSize(std::vector<Entity>& entities)
 	{
-		return entities[startIndex].coord4;
+		return entities[_startIndex].coord4;
 	}
 
 	void relayout(std::vector<Entity>& entities)
@@ -398,7 +434,7 @@ struct Component
 	void enableClicking(
 		std::function<void()> inOnSelect,
 		std::function<void()> inOnDeselect,
-		std::function<void()> inOnClick)
+		std::function<void(const Vector2&)> inOnClick)
 	{
 		onSelect = inOnSelect;
 		onDeselect = inOnDeselect;
@@ -408,6 +444,10 @@ struct Component
 
 	bool onMouseMove(std::vector<Entity>& entities, const Vector2& position, const Vector2& delta)
 	{
+		if (!isEnabled(entities))
+		{
+			return false;
+		}
 		if (isDragging)
 		{
 			onDrag(entities, delta);
@@ -426,6 +466,19 @@ struct Component
 
 	bool onMouseButton1Down(std::vector<Entity>& entities, const Vector2& position)
 	{
+		if (!isEnabled(entities))
+		{
+			return false;
+		}
+		for (int32_t i = children.size()-1; i >= 0; --i)
+		{
+			std::shared_ptr<Component> child = children[i];
+			if (child->onMouseButton1Down(entities, position))
+			{
+				return true;
+			}
+		}
+
 		if (isClickable && doesPointIntersectRect(position, screenPosition, screenSize))
 		{
 			isSelected = true;
@@ -435,26 +488,22 @@ struct Component
 			}
 			return true;
 		}
+
 		if (isDraggable && doesPointIntersectRect(position, screenPosition, screenSize))
 		{
 			printf("made draggable\n");
 			isDragging = true;
 			return true;
 		}
-
-		for (int32_t i = children.size()-1; i >= 0; --i)
-		{
-			std::shared_ptr<Component> child = children[i];
-			if (child->onMouseButton1Down(entities, position))
-			{
-				return true;
-			}
-		}
 		return false;
 	}
 
 	bool onMouseButton1Up(std::vector<Entity>& entities, const Vector2& position)
 	{
+		if (!isEnabled(entities))
+		{
+			return false;
+		}
 		if (isClickable && isSelected)
 		{
 			isSelected = false;
@@ -464,7 +513,7 @@ struct Component
 			}
 			if (onClick && doesPointIntersectRect(position, screenPosition, screenSize))
 			{
-				onClick();
+				onClick(position);
 			}
 			return true;
 		}
@@ -486,6 +535,40 @@ struct Component
 	}
 };
 
+struct FixedCapacityPool
+{
+	std::vector<std::shared_ptr<struct Component>> pool;
+
+	FixedCapacityPool(
+		std::vector<Entity>& entities,
+		uint32_t capacity,
+		std::shared_ptr<struct Component> parent,
+		std::function<struct Component*()> initialize)
+	{
+		for (int32_t i = 0; i < capacity; ++i)
+		{
+			auto component = std::shared_ptr<struct Component>(initialize());
+			component->disable(entities);
+			pool.push_back(component);
+			parent->addChild(entities, component);
+		}
+	}
+
+	std::shared_ptr<struct Component> get(std::vector<Entity>& entities)
+	{
+		for (auto component : pool)
+		{
+			if (!component->isEnabled(entities))
+			{
+				component->enable(entities);
+				return component;
+			}
+		}
+		//assert false?
+		return nullptr;
+	}
+};
+
 struct DrawComponent : Component
 {
 	DrawComponent(std::vector<Entity>& entities)
@@ -500,7 +583,7 @@ struct DrawComponent : Component
 		const Vector2& oldScreenSize) override
 	{
 		printf("Component::doLayout %4.2f x %4.2f, %4.2f x %4.2f\n", screenPosition.x, screenPosition.y, screenSize.x, screenSize.y);
-		for (int32_t index = startIndex + 1; index <= endIndex; ++index)
+		for (int32_t index = getStartIndex(entities) + 1; index <= getEndIndex(entities); ++index)
 		{
 			Entity& entity = entities[index];
 			switch (entity.type)
@@ -555,6 +638,47 @@ struct DrawComponent : Component
 	}
 };
 
+struct RoundedRectangleComponent : DrawComponent
+{
+	RoundedRectangleComponent(
+		std::vector<Entity>& entities,
+		float radius,
+		float thickness,
+		uint32_t strokeRgba,
+		uint32_t fillRgba)
+	: DrawComponent(entities)
+	{
+		addEntity(entities, Entity::roundedRectangle(Vector2(), Vector2(), radius, thickness, strokeRgba, fillRgba));
+	}
+
+	void setFillColor(std::vector<Entity>& entities, uint32_t rgba)
+	{
+		entities[getStartIndex(entities)+1].id2 = rgba;
+	}
+
+	void doLayoutEntities(
+		std::vector<Entity>& entities,
+		const Vector2& oldScreenPosition,
+		const Vector2& oldScreenSize) override
+	{
+		Entity& rectangle = entities[getStartIndex(entities)+1];
+		rectangle.coord1 = screenPosition;
+		rectangle.coord3 = screenSize;
+	}
+
+	void doLayout(
+		std::vector<Entity>& entities,
+		const Vector2& parentPosition,
+		const Vector2& parentSize) override
+	{
+		const Vector2 oldScreenSize = screenSize;
+		const Vector2 oldScreenPosition = screenPosition;
+		doLayoutCommon(entities, parentPosition, parentSize);
+		doLayoutEntities(entities, oldScreenPosition, oldScreenSize);
+		doLayoutChildren(entities);
+	}
+};
+
 struct RectangleComponent : DrawComponent
 {
 	RectangleComponent(std::vector<Entity>& entities, uint32_t rgba)
@@ -568,7 +692,7 @@ struct RectangleComponent : DrawComponent
 		const Vector2& oldScreenPosition,
 		const Vector2& oldScreenSize) override
 	{
-		Entity& rectangle = entities[startIndex+1];
+		Entity& rectangle = entities[getStartIndex(entities)+1];
 		rectangle.coord1 = screenPosition;
 		rectangle.coord3 = screenSize;
 	}
@@ -602,7 +726,7 @@ struct FillCircleComponent : DrawComponent
 
 	void setColor(std::vector<Entity>& entities, uint32_t rgba)
 	{
-		entities[startIndex+1].id1 = rgba;
+		entities[getStartIndex(entities)+1].id1 = rgba;
 	}
 
 	void doLayoutEntities(
@@ -612,7 +736,7 @@ struct FillCircleComponent : DrawComponent
 	{
 		printf("FillCircleComponent cached %4.2f x %4.2f, %4.2f x %4.2f\n",
 			cachedParentPosition.x, cachedParentPosition.y, cachedParentSize.x, cachedParentSize.y);
-		Entity& circle = entities[startIndex+1];
+		Entity& circle = entities[getStartIndex(entities)+1];
 		//circle.coord1 = Vector2(screenPosition.x - anchorPoint.x*radius*2.0f, screenPosition.y - anchorPoint.y*radius*2.0f);
 		circle.coord1 = screenPosition;
 		circle.coord3 = Vector2(screenSize.x/2.0f, screenSize.y/2.0f);
@@ -650,7 +774,7 @@ struct StrokeCircleComponent : DrawComponent
 		const Vector2& oldScreenPosition,
 		const Vector2& oldScreenSize) override
 	{
-		Entity& circle = entities[startIndex+1];
+		Entity& circle = entities[getStartIndex(entities)+1];
 		//circle.coord1 = Vector2(screenPosition.x - anchorPoint.x*radius*2.0f, screenPosition.y - anchorPoint.y*radius*2.0f);
 		circle.coord1 = screenPosition;
 		circle.coord3 = Vector2(screenSize.x/2.0f, screenSize.y/2.0f);
@@ -669,31 +793,6 @@ struct StrokeCircleComponent : DrawComponent
 		doLayoutChildren(entities);
 	}
 };
-
-// struct RoundedRectangleComponent : DrawComponent
-// {
-// 	RoundedRectangleComponent(std::vector<Entity>& entities, uint32_t rgba)
-// 	: DrawComponent(entities)
-// 	{
-// 		addEntity(entities, Entity::rectangle(Vector2(), Vector2(), rgba));
-// 	}
-
-// 	void doLayout(
-// 		std::vector<Entity>& entities,
-// 		const Vector2& parentPosition,
-// 		const Vector2& parentSize) override
-// 	{
-// 		const Vector2 oldScreenSize = screenSize;
-// 		const Vector2 oldScreenPosition = screenPosition;
-// 		doLayoutCommon(entities, parentPosition, parentSize);
-
-// 		Entity& rectangle = entities[startIndex+1];
-// 		rectangle.coord1 = screenPosition;
-// 		rectangle.coord3 = screenSize;
-
-// 		doLayoutChildren(entities);
-// 	}
-// };
 
 struct TextComponent : DrawComponent
 {
@@ -714,7 +813,7 @@ struct TextComponent : DrawComponent
 		const Vector2& oldScreenPosition,
 		const Vector2& oldScreenSize) override
 	{
-		Entity& textEntity = entities[startIndex+1];
+		Entity& textEntity = entities[getStartIndex(entities)+1];
 		textEntity.coord1 = screenPosition;
 	}
 
@@ -757,7 +856,7 @@ struct EntityGrid : DrawComponent
 				));
 			}
 		}
-		endIndex = entities.size() - 1;
+		setEndIndex(entities, entities.size() - 1);
 		screenSize = Vector2(matrixSize.x*cellSpacing, matrixSize.y*cellSpacing);
 		aspectRatio = (float)matrixSize.x/(float)matrixSize.y;
 	}
@@ -850,6 +949,14 @@ struct Game
 			const Entity& entity = entities[i];
 			switch (entity.type)
 			{
+				case Type::Component:
+				{
+					if (entity.id3 == 0)
+					{
+						i = entity.id2;
+					}
+					break;
+				}
 				case Type::FillCircle:
 				{
 					Engine_FilledEllipse(
