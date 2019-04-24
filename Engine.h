@@ -55,6 +55,26 @@ struct Vector2
 	, y(y) {}
 };
 
+Vector2 operator* (float c, const Vector2& v)
+{
+    return Vector2(c*v.x, c*v.y);
+}
+
+Vector2 operator* (const Vector2& v, float c)
+{
+    return Vector2(c*v.x, c*v.y);
+}
+
+Vector2 operator+ (const Vector2& v1, const Vector2& v2)
+{
+    return Vector2(v1.x + v2.x, v1.y + v2.y);
+}
+
+Vector2 operator- (const Vector2& v1, const Vector2& v2)
+{
+    return Vector2(v1.x - v2.x, v1.y - v2.y);
+}
+
 struct Vector2Int
 {
 	int32_t x;

@@ -286,6 +286,82 @@ struct TestPooling : Screen
 	}
 };
 
+struct Animation
+{
+	std::shared_ptr<Component> component;
+
+	Animation(std::shared_ptr<Component> component)
+	: component(component) {}
+
+	virtual bool step(std::vector<Entity>& entities, float deltaTime);
+}
+
+struct SpringAnimation : Animation
+{
+	Vector2 velocity;
+	Vector2 destination;
+	float stiffness;
+	float damping;
+	float precision;
+
+	SpringAnimation(
+		std::shared_ptr<Component>,
+		const Vector2& destination,
+		float stiffness,
+		float damping,
+		float precision)
+	: velocity(Vector2())
+	, destination(destination)
+	, stiffness(stiffness)
+	, damping(damping)
+	, precision(precision) {}
+};
+
+struct TestAnimation : Screen
+{
+	void step(float deltaTime)
+	{
+		deltaTime /= 1000.0f;
+		const Vector2& position = entities[testIndex].coord1;
+		const Vector2 displacement = position - animation.destination;
+
+		const Vector2 springForce = -animation.stiffness * displacement;
+		const Vector2 dampForce = animation.velocity * -animation.damping;
+
+		const Vector2 acceleration = springForce + dampForce;
+		const Vector2 newVelocity = animation.velocity + acceleration * deltaTime;
+		const Vector2 newPosition = position + animation.velocity * deltaTime;
+
+		if (fabs(newPosition.x-position.x) < animation.precision
+			&& fabs(newPosition.y-position.y) < animation.precision
+			&& fabs(newVelocity.x) < animation.precision
+			&& fabs(newVelocity.y) < animation.precision
+			&& deltaTime > 0.0f)
+		{
+			animation.velocity = Vector2();
+			entities[testIndex].coord1 = animation.destination;
+		}
+		else
+		{
+			animation.velocity = newVelocity;
+			entities[testIndex].coord1 = newPosition;
+		}
+	}
+
+	Animation animation;
+	uint32_t testIndex;
+	TestAnimation()
+	: animation(Vector2(600.0f, 400.0f), 1000.0f, 100.0f, 0.001f)
+	{
+		printf("initializing TestAnimation\n");
+
+		entities.push_back(Entity::fillCircle(Vector2(50.0f, 50.0f), 30.0f, 0x999900FF));
+
+		entities.push_back(Entity::fillCircle(Vector2(50.0f, 150.0f), 30.0f, 0x9999FFFF));
+		testIndex = entities.size()-1;
+	}
+};
+
 std::function<void()> loop;
 void main_loop() { loop(); }
 
@@ -300,11 +376,18 @@ int main()
 	std::shared_ptr<Screen> testDraggable = std::shared_ptr<Screen> (new TestDraggable());
 	std::shared_ptr<Screen> testClickable = std::shared_ptr<Screen> (new TestClickable());
 	std::shared_ptr<Screen> testPooling = std::shared_ptr<Screen> (new TestPooling());
+	std::shared_ptr<TestAnimation> testAnimation = std::shared_ptr<TestAnimation> (new TestAnimation());
 	game.setScreen(testPrimitives);
+
+
+	double lastTime = emscripten_get_now();
 
 	int32_t mode = 0;
 	loop = [&]
 	{
+		double currentTime = emscripten_get_now();
+		float deltaTime = currentTime - lastTime;
+		lastTime = currentTime;
 		int32_t newMode = Engine_GetMode();
 		if (newMode != mode)
 		{
@@ -342,7 +425,16 @@ int main()
 					game.setScreen(testPooling);
 					break;
 				}
+				case 6:
+				{
+					game.setScreen(testAnimation);
+					break;
+				}
 			}
+		}
+		if (mode == 6)
+		{
+			testAnimation->step(deltaTime);
 		}
 		game.loop();
 	};
