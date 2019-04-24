@@ -220,6 +220,11 @@ struct Entity
 	}
 };
 
+struct Movement
+{
+	virtual void onStep(std::vector<Entity>& entity, float timeDelta) {}
+};
+
 struct Component
 {
 	enum SizeMode
@@ -246,6 +251,8 @@ struct Component
 	std::function<void()> onSelect;
 	std::function<void()> onDeselect;
 	std::function<void(const Vector2&)> onClick;
+
+	std::shared_ptr<Movement> movement;
 
 	std::vector<std::shared_ptr<Component>> children;
 	Component(std::vector<Entity>& entities)
@@ -387,11 +394,11 @@ struct Component
 		const Vector2& offsetSize = getOffsetSize(entities);
 		const Vector2& relativePosition = getRelativePosition(entities);
 		const Vector2& offsetPosition = getOffsetPosition(entities);
-		printf("doLayoutCommon %4.2f x %4.2f, %4.2f x %4.2f, %4.2f x %4.2f\n", parentSize.x, parentSize.y, offsetSize.x, offsetSize.y, relativeSize.x, relativeSize.y);
+		//printf("doLayoutCommon %4.2f x %4.2f, %4.2f x %4.2f, %4.2f x %4.2f\n", parentSize.x, parentSize.y, offsetSize.x, offsetSize.y, relativeSize.x, relativeSize.y);
 
 		float newWidth = relativeSize.x*parentSize.x + offsetSize.x;
 		float newHeight = relativeSize.y*parentSize.y + offsetSize.y;
-		printf("new: %4.2f x %4.2f\n", newWidth, newHeight);
+		//printf("new: %4.2f x %4.2f\n", newWidth, newHeight);
 
 		screenSize = Vector2(newWidth, newHeight);
 		applySizeMode();
@@ -427,6 +434,25 @@ struct Component
 		const Vector2& oldParentSize)
 	{
 
+	}
+
+	void doStep(std::vector<Entity>& entities, float timeDelta)
+	{
+		if (!isEnabled(entities))
+		{
+			return;
+		}
+		
+		if (movement)
+		{
+			movement->onStep(entities, timeDelta);
+			relayout(entities);
+		}
+
+		for (auto child : children)
+		{
+			child->doStep(entities, timeDelta);
+		}
 	}
 
 	void enableDragging(std::function<void(Vector2& offsetPosition)> inClampOffset)
@@ -555,6 +581,99 @@ struct Component
 	}
 };
 
+struct SpringAnimation : Movement
+{
+	enum Type
+	{
+		RelativePosition,
+		OffsetPosition,
+		RelativeSize,
+		OffsetSize
+	};
+
+	std::shared_ptr<struct Component> component;
+	Type type;
+	Vector2 velocity;
+	Vector2 destination;
+	float stiffness;
+	float damping;
+	float precision;
+
+	SpringAnimation(
+		std::shared_ptr<struct Component> component,
+		SpringAnimation::Type type,
+		const Vector2& destination,
+		float stiffness,
+		float damping,
+		float precision)
+	: component(component)
+	, type(type)
+	, velocity(Vector2())
+	, destination(destination)
+	, stiffness(stiffness)
+	, damping(damping)
+	, precision(precision) {}
+
+	const Vector2 stepSpring(float deltaTime, const Vector2& current)
+	{
+		deltaTime /= 1000.0f;
+		const Vector2 displacement = current - destination;
+
+		const Vector2 springForce = -stiffness * displacement;
+		const Vector2 dampForce = velocity * -damping;
+
+		const Vector2 acceleration = springForce + dampForce;
+		const Vector2 newVelocity = velocity + acceleration * deltaTime;
+		const Vector2 newPosition = current + velocity * deltaTime;
+
+		if (fabs(newPosition.x-current.x) < precision
+			&& fabs(newPosition.y-current.y) < precision
+			&& fabs(newVelocity.x) < precision
+			&& fabs(newVelocity.y) < precision
+			&& deltaTime > 0.0f)
+		{
+			velocity = Vector2();
+			return destination;
+		}
+		else
+		{
+			velocity = newVelocity;
+			return newPosition;
+		}
+	}
+
+	void onStep(std::vector<Entity>& entities, float deltaTime) override
+	{
+		switch (type)
+		{
+			case RelativePosition:
+			{
+				const Vector2 value = stepSpring(deltaTime, component->getRelativePosition(entities));
+				component->setRelativePosition(entities, value);
+				break;
+			}
+			case OffsetPosition:
+			{
+				const Vector2 value = stepSpring(deltaTime, component->getOffsetPosition(entities));
+				component->setOffsetPosition(entities, value);
+				break;
+			}
+			case RelativeSize:
+			{
+				const Vector2 value = stepSpring(deltaTime, component->getRelativeSize(entities));
+				component->setRelativeSize(entities, value);
+				break;
+			}
+			case OffsetSize:
+			{
+				const Vector2 value = stepSpring(deltaTime, component->getOffsetSize(entities));
+				component->setOffsetSize(entities, value);
+				break;
+			}
+		}
+	}
+};
+
 struct FixedCapacityPool
 {
 	std::vector<std::shared_ptr<struct Component>> pool;
@@ -602,7 +721,7 @@ struct DrawComponent : Component
 		const Vector2& oldScreenPosition,
 		const Vector2& oldScreenSize) override
 	{
-		printf("Component::doLayout %4.2f x %4.2f, %4.2f x %4.2f\n", screenPosition.x, screenPosition.y, screenSize.x, screenSize.y);
+		//printf("Component::doLayout %4.2f x %4.2f, %4.2f x %4.2f\n", screenPosition.x, screenPosition.y, screenSize.x, screenSize.y);
 		for (int32_t index = getStartIndex(entities) + 1; index <= getEndIndex(entities); ++index)
 		{
 			Entity& entity = entities[index];
@@ -754,13 +873,13 @@ struct FillCircleComponent : DrawComponent
 		const Vector2& oldScreenPosition,
 		const Vector2& oldScreenSize) override
 	{
-		printf("FillCircleComponent cached %4.2f x %4.2f, %4.2f x %4.2f\n",
-			cachedParentPosition.x, cachedParentPosition.y, cachedParentSize.x, cachedParentSize.y);
+		//printf("FillCircleComponent cached %4.2f x %4.2f, %4.2f x %4.2f\n",
+		//	cachedParentPosition.x, cachedParentPosition.y, cachedParentSize.x, cachedParentSize.y);
 		Entity& circle = entities[getStartIndex(entities)+1];
 		//circle.coord1 = Vector2(screenPosition.x - anchorPoint.x*radius*2.0f, screenPosition.y - anchorPoint.y*radius*2.0f);
 		circle.coord1 = screenPosition;
 		circle.coord3 = Vector2(screenSize.x/2.0f, screenSize.y/2.0f);
-		printf("FillCircleComponent doLayoutEntities %4.2f x %4.2f\n", screenPosition.x, screenPosition.y);
+		//printf("FillCircleComponent doLayoutEntities %4.2f x %4.2f\n", screenPosition.x, screenPosition.y);
 	}
 
 	void doLayout(
@@ -798,7 +917,7 @@ struct StrokeCircleComponent : DrawComponent
 		//circle.coord1 = Vector2(screenPosition.x - anchorPoint.x*radius*2.0f, screenPosition.y - anchorPoint.y*radius*2.0f);
 		circle.coord1 = screenPosition;
 		circle.coord3 = Vector2(screenSize.x/2.0f, screenSize.y/2.0f);
-		printf("StrokeCircleComponent doLayoutEntities %4.2f x %4.2f\n", screenPosition.x, screenPosition.y);
+		//printf("StrokeCircleComponent doLayoutEntities %4.2f x %4.2f\n", screenPosition.x, screenPosition.y);
 	}
 
 	void doLayout(
@@ -911,6 +1030,14 @@ struct Screen
 		if (rootComponent)
 		{
 			rootComponent->doLayout(entities, Vector2(), newSize);
+		}
+	}
+
+	void doStep(float timeDelta)
+	{
+		if (rootComponent)
+		{
+			rootComponent->doStep(entities, timeDelta);
 		}
 	}
 
@@ -1123,6 +1250,7 @@ struct Game
 		
 		resize();
 		pollEvents();
+		screen->doStep(currentTime-lastTime);
 		draw(currentTime, count);
 		
 		lastTime = currentTime;

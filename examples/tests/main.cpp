@@ -286,79 +286,76 @@ struct TestPooling : Screen
 	}
 };
 
-struct Animation
-{
-	std::shared_ptr<Component> component;
+// struct Animation
+// {
+// 	std::shared_ptr<struct Component> component;
 
-	Animation(std::shared_ptr<Component> component)
-	: component(component) {}
+// 	Animation(std::shared_ptr<Component> component)
+// 	: component(component) {}
 
-	virtual bool step(std::vector<Entity>& entities, float deltaTime);
-}
-
-struct SpringAnimation : Animation
-{
-	Vector2 velocity;
-	Vector2 destination;
-	float stiffness;
-	float damping;
-	float precision;
-
-	SpringAnimation(
-		std::shared_ptr<Component>,
-		const Vector2& destination,
-		float stiffness,
-		float damping,
-		float precision)
-	: velocity(Vector2())
-	, destination(destination)
-	, stiffness(stiffness)
-	, damping(damping)
-	, precision(precision) {}
-};
+// 	virtual bool step(std::vector<Entity>& entities, float deltaTime);
+// }
 
 struct TestAnimation : Screen
 {
-	void step(float deltaTime)
-	{
-		deltaTime /= 1000.0f;
-		const Vector2& position = entities[testIndex].coord1;
-		const Vector2 displacement = position - animation.destination;
+	// void step(float deltaTime)
+	// {
+	// 	deltaTime /= 1000.0f;
+	// 	const Vector2& position = entities[testIndex].coord1;
+	// 	const Vector2 displacement = position - animation.destination;
 
-		const Vector2 springForce = -animation.stiffness * displacement;
-		const Vector2 dampForce = animation.velocity * -animation.damping;
+	// 	const Vector2 springForce = -animation.stiffness * displacement;
+	// 	const Vector2 dampForce = animation.velocity * -animation.damping;
 
-		const Vector2 acceleration = springForce + dampForce;
-		const Vector2 newVelocity = animation.velocity + acceleration * deltaTime;
-		const Vector2 newPosition = position + animation.velocity * deltaTime;
+	// 	const Vector2 acceleration = springForce + dampForce;
+	// 	const Vector2 newVelocity = animation.velocity + acceleration * deltaTime;
+	// 	const Vector2 newPosition = position + animation.velocity * deltaTime;
 
-		if (fabs(newPosition.x-position.x) < animation.precision
-			&& fabs(newPosition.y-position.y) < animation.precision
-			&& fabs(newVelocity.x) < animation.precision
-			&& fabs(newVelocity.y) < animation.precision
-			&& deltaTime > 0.0f)
-		{
-			animation.velocity = Vector2();
-			entities[testIndex].coord1 = animation.destination;
-		}
-		else
-		{
-			animation.velocity = newVelocity;
-			entities[testIndex].coord1 = newPosition;
-		}
-	}
+	// 	if (fabs(newPosition.x-position.x) < animation.precision
+	// 		&& fabs(newPosition.y-position.y) < animation.precision
+	// 		&& fabs(newVelocity.x) < animation.precision
+	// 		&& fabs(newVelocity.y) < animation.precision
+	// 		&& deltaTime > 0.0f)
+	// 	{
+	// 		animation.velocity = Vector2();
+	// 		entities[testIndex].coord1 = animation.destination;
+	// 	}
+	// 	else
+	// 	{
+	// 		animation.velocity = newVelocity;
+	// 		entities[testIndex].coord1 = newPosition;
+	// 	}
+	// }
 
-	Animation animation;
+//	Animation animation;
 	uint32_t testIndex;
 	TestAnimation()
-	: animation(Vector2(600.0f, 400.0f), 1000.0f, 100.0f, 0.001f)
+//	: animation(Vector2(600.0f, 400.0f), 1000.0f, 100.0f, 0.001f)
 	{
 		printf("initializing TestAnimation\n");
 
 		entities.push_back(Entity::fillCircle(Vector2(50.0f, 50.0f), 30.0f, 0x999900FF));
 
-		entities.push_back(Entity::fillCircle(Vector2(50.0f, 150.0f), 30.0f, 0x9999FFFF));
-		testIndex = entities.size()-1;
+		rootComponent = std::shared_ptr<struct Component>(new struct Component(entities));
+		rootComponent->setRelativeSize(entities, Vector2(1.0f, 1.0f));
+
+		auto circle = std::shared_ptr<FillCircleComponent>(new FillCircleComponent(entities, 0xAACCFFFF));
+		circle->setRadius(entities, 50.0f, 0.0f);
+		circle->setRelativePosition(entities, Vector2(0.0f, 0.0f));
+		circle->setOffsetPosition(entities, Vector2(200.0f, 200.0f));
+		circle->setAnchorPoint(entities, Vector2(0.5f, 0.5f));
+
+		auto animation = std::shared_ptr<SpringAnimation>(new SpringAnimation(
+			circle,
+			SpringAnimation::OffsetPosition,
+			Vector2(600.0f, 400.0f),
+			1000.0f,
+			100.0f,
+			0.001f
+		));
+		circle->movement = animation;
+
+		rootComponent->addChild(entities, circle);
 	}
 };
 
@@ -431,10 +428,6 @@ int main()
 					break;
 				}
 			}
-		}
-		if (mode == 6)
-		{
-			testAnimation->step(deltaTime);
 		}
 		game.loop();
 	};
