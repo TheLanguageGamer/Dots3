@@ -286,51 +286,9 @@ struct TestPooling : Screen
 	}
 };
 
-// struct Animation
-// {
-// 	std::shared_ptr<struct Component> component;
-
-// 	Animation(std::shared_ptr<Component> component)
-// 	: component(component) {}
-
-// 	virtual bool step(std::vector<Entity>& entities, float deltaTime);
-// }
-
 struct TestAnimation : Screen
 {
-	// void step(float deltaTime)
-	// {
-	// 	deltaTime /= 1000.0f;
-	// 	const Vector2& position = entities[testIndex].coord1;
-	// 	const Vector2 displacement = position - animation.destination;
-
-	// 	const Vector2 springForce = -animation.stiffness * displacement;
-	// 	const Vector2 dampForce = animation.velocity * -animation.damping;
-
-	// 	const Vector2 acceleration = springForce + dampForce;
-	// 	const Vector2 newVelocity = animation.velocity + acceleration * deltaTime;
-	// 	const Vector2 newPosition = position + animation.velocity * deltaTime;
-
-	// 	if (fabs(newPosition.x-position.x) < animation.precision
-	// 		&& fabs(newPosition.y-position.y) < animation.precision
-	// 		&& fabs(newVelocity.x) < animation.precision
-	// 		&& fabs(newVelocity.y) < animation.precision
-	// 		&& deltaTime > 0.0f)
-	// 	{
-	// 		animation.velocity = Vector2();
-	// 		entities[testIndex].coord1 = animation.destination;
-	// 	}
-	// 	else
-	// 	{
-	// 		animation.velocity = newVelocity;
-	// 		entities[testIndex].coord1 = newPosition;
-	// 	}
-	// }
-
-//	Animation animation;
-	uint32_t testIndex;
 	TestAnimation()
-//	: animation(Vector2(600.0f, 400.0f), 1000.0f, 100.0f, 0.001f)
 	{
 		printf("initializing TestAnimation\n");
 
@@ -339,23 +297,68 @@ struct TestAnimation : Screen
 		rootComponent = std::shared_ptr<struct Component>(new struct Component(entities));
 		rootComponent->setRelativeSize(entities, Vector2(1.0f, 1.0f));
 
-		auto circle = std::shared_ptr<FillCircleComponent>(new FillCircleComponent(entities, 0xAACCFFFF));
-		circle->setRadius(entities, 50.0f, 0.0f);
-		circle->setRelativePosition(entities, Vector2(0.0f, 0.0f));
-		circle->setOffsetPosition(entities, Vector2(200.0f, 200.0f));
-		circle->setAnchorPoint(entities, Vector2(0.5f, 0.5f));
+		auto circle1 = std::shared_ptr<FillCircleComponent>(new FillCircleComponent(entities, 0xAACCFFFF));
+		circle1->setRadius(entities, 50.0f, 0.0f);
+		circle1->setRelativePosition(entities, Vector2(0.0f, 0.0f));
+		circle1->setOffsetPosition(entities, Vector2(200.0f, 200.0f));
+		circle1->setAnchorPoint(entities, Vector2(0.5f, 0.5f));
 
-		auto animation = std::shared_ptr<SpringAnimation>(new SpringAnimation(
-			circle,
+		auto animation1 = std::shared_ptr<SpringAnimation>(new SpringAnimation(
+			circle1,
 			SpringAnimation::OffsetPosition,
 			Vector2(600.0f, 400.0f),
 			1000.0f,
 			100.0f,
 			0.001f
 		));
-		circle->movement = animation;
+		circle1->movement = animation1;
 
-		rootComponent->addChild(entities, circle);
+		auto circle2 = std::shared_ptr<FillCircleComponent>(new FillCircleComponent(entities, 0xFFAAFFFF));
+		circle2->setRadius(entities, 50.0f, 0.0f);
+		circle2->setRelativePosition(entities, Vector2(1.0f, 0.0f));
+		circle2->setOffsetPosition(entities, Vector2(-400.0f, 300.0f));
+		circle2->setAnchorPoint(entities, Vector2(0.5f, 0.5f));
+
+		auto animation2 = std::shared_ptr<SpringAnimation>(new SpringAnimation(
+			circle2,
+			SpringAnimation::OffsetSize,
+			Vector2(150.0f, 150.0f),
+			1000.0f,
+			100.0f,
+			0.001f
+		));
+		circle2->movement = animation2;
+
+		auto circle3 = std::shared_ptr<FillCircleComponent>(new FillCircleComponent(entities, 0xAAFFAAFF));
+		circle3->setRadius(entities, 30.0f, 0.0f);
+		circle3->setRelativePosition(entities, Vector2(0.5f, 0.0f));
+		circle3->setOffsetPosition(entities, Vector2(0.0f, 100.0f));
+		circle3->setAnchorPoint(entities, Vector2(0.5f, 0.5f));
+
+		auto animation3a = std::shared_ptr<SpringAnimation>(new SpringAnimation(
+			circle3,
+			SpringAnimation::OffsetPosition,
+			Vector2(-400.0f, 300.0f),
+			1000.0f,
+			100.0f,
+			0.001f
+		));
+		auto animation3b = std::shared_ptr<SpringAnimation>(new SpringAnimation(
+			circle3,
+			SpringAnimation::OffsetSize,
+			Vector2(150.0f, 150.0f),
+			1000.0f,
+			100.0f,
+			0.001f
+		));
+		auto animation3 = std::shared_ptr<ComposeMovement>(new ComposeMovement());
+		animation3->movements.push_back(animation3a);
+		animation3->movements.push_back(animation3b);
+		circle3->movement = animation3;
+
+		rootComponent->addChild(entities, circle1);
+		rootComponent->addChild(entities, circle2);
+		rootComponent->addChild(entities, circle3);
 	}
 };
 

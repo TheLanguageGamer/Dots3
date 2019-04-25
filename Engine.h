@@ -581,6 +581,19 @@ struct Component
 	}
 };
 
+struct ComposeMovement : Movement
+{
+	std::vector<std::shared_ptr<Movement>> movements;
+
+	void onStep(std::vector<Entity>& entities, float deltaTime) override
+	{
+		for (auto movement : movements)
+		{
+			movement->onStep(entities, deltaTime);
+		}
+	}
+};
+
 struct SpringAnimation : Movement
 {
 	enum Type
@@ -879,7 +892,7 @@ struct FillCircleComponent : DrawComponent
 		//circle.coord1 = Vector2(screenPosition.x - anchorPoint.x*radius*2.0f, screenPosition.y - anchorPoint.y*radius*2.0f);
 		circle.coord1 = screenPosition;
 		circle.coord3 = Vector2(screenSize.x/2.0f, screenSize.y/2.0f);
-		//printf("FillCircleComponent doLayoutEntities %4.2f x %4.2f\n", screenPosition.x, screenPosition.y);
+		printf("FillCircleComponent doLayoutEntities %4.2f x %4.2f\n", screenPosition.x, screenPosition.y);
 	}
 
 	void doLayout(
