@@ -356,9 +356,54 @@ struct TestAnimation : Screen
 		animation3->movements.push_back(animation3b);
 		circle3->movement = animation3;
 
+		auto circle4 = std::shared_ptr<FillCircleComponent>(new FillCircleComponent(entities, 0xDDDDDDFF));
+		circle4->setRadius(entities, 80.0f, 0.0f);
+		circle4->setRelativePosition(entities, Vector2(0.0f, 0.0f));
+		circle4->setAnchorPoint(entities, Vector2(0.5f, 0.5f));
+
+		auto animation4a = std::shared_ptr<SpringAnimation>(new SpringAnimation(
+			circle4,
+			SpringAnimation::RelativePosition,
+			Vector2(1.0f, 0.0f),
+			1000.0f,
+			100.0f,
+			0.001f
+		));
+		auto animation4b = std::shared_ptr<SpringAnimation>(new SpringAnimation(
+			circle4,
+			SpringAnimation::RelativePosition,
+			Vector2(1.0f, 1.0f),
+			1000.0f,
+			100.0f,
+			0.001f
+		));
+		auto animation4c = std::shared_ptr<SpringAnimation>(new SpringAnimation(
+			circle4,
+			SpringAnimation::RelativePosition,
+			Vector2(0.0f, 1.0f),
+			1000.0f,
+			100.0f,
+			0.001f
+		));
+		auto animation4d = std::shared_ptr<SpringAnimation>(new SpringAnimation(
+			circle4,
+			SpringAnimation::RelativePosition,
+			Vector2(0.0f, 0.0f),
+			1000.0f,
+			100.0f,
+			0.001f
+		));
+		auto animation4 = std::shared_ptr<SequentialMovement>(new SequentialMovement());
+		animation4->movements.push_back(animation4a);
+		animation4->movements.push_back(animation4b);
+		animation4->movements.push_back(animation4c);
+		animation4->movements.push_back(animation4d);
+		circle4->movement = animation4;
+
 		rootComponent->addChild(entities, circle1);
 		rootComponent->addChild(entities, circle2);
 		rootComponent->addChild(entities, circle3);
+		rootComponent->addChild(entities, circle4);
 	}
 };
 

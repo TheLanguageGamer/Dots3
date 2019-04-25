@@ -222,6 +222,7 @@ struct Entity
 
 struct Movement
 {
+	bool isComplete = false;
 	virtual void onStep(std::vector<Entity>& entity, float timeDelta) {}
 };
 
@@ -587,9 +588,42 @@ struct ComposeMovement : Movement
 
 	void onStep(std::vector<Entity>& entities, float deltaTime) override
 	{
+		bool allComplete = true;
 		for (auto movement : movements)
 		{
-			movement->onStep(entities, deltaTime);
+			if (!movement->isComplete)
+			{
+				movement->onStep(entities, deltaTime);
+				allComplete = false;
+			}
+		}
+		isComplete = allComplete;
+	}
+};
+
+struct SequentialMovement : Movement
+{
+	std::vector<std::shared_ptr<Movement>> movements;
+	uint32_t index = 0;
+
+	void onStep(std::vector<Entity>& entities, float deltaTime) override
+	{
+		if (movements.size() == 0 || isComplete)
+		{
+			isComplete = true;
+			return;
+		}
+
+		auto movement = movements[index];
+		movement->onStep(entities, deltaTime);
+
+		if (movement->isComplete)
+		{
+			index++;
+			if (index >= movements.size())
+			{
+				isComplete = true;
+			}
 		}
 	}
 };
@@ -639,13 +673,14 @@ struct SpringAnimation : Movement
 		const Vector2 newVelocity = velocity + acceleration * deltaTime;
 		const Vector2 newPosition = current + velocity * deltaTime;
 
-		if (fabs(newPosition.x-current.x) < precision
-			&& fabs(newPosition.y-current.y) < precision
+		if (fabs(newPosition.x-destination.x) < precision
+			&& fabs(newPosition.y-destination.y) < precision
 			&& fabs(newVelocity.x) < precision
 			&& fabs(newVelocity.y) < precision
 			&& deltaTime > 0.0f)
 		{
 			velocity = Vector2();
+			isComplete = true;
 			return destination;
 		}
 		else
