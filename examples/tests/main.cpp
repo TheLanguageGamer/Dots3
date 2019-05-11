@@ -82,15 +82,59 @@ struct TestEntityGrid : Screen
 	{
 		printf("initializing TestEntityGrid\n");
 		entities.push_back(Entity::fillCircle(Vector2(50.0f, 50.0f), 30.0f, 0x66AAFFFF));
-		rootComponent = std::shared_ptr<struct Component>(new EntityGrid(
+		auto entityGrid = std::shared_ptr<EntityGrid>(new EntityGrid(
 			entities,
-			Vector2Int(20, 30)
+			Vector2Int(20, 30),
+			[](){
+				return Entity::roundedRectangle(
+					Vector2(),
+					Vector2(),
+					3.0f,
+					1.0f,
+					0xFFFFFFFF,
+					0x000000FF
+				);
+			},
+			[](std::vector<Entity>& entities, uint32_t index, uint32_t state) {
+				//entities[index]
+				switch (state)
+				{
+					case 0:
+					{
+						Entity::setFillColor(entities[index], 0x000000FF);
+						break;
+					}
+					case 1:
+					{
+						Entity::setFillColor(entities[index], 0xFF0000FF);
+						break;
+					}
+					case 2:
+					{
+						Entity::setFillColor(entities[index], 0x00FF00FF);
+						break;
+					}
+					case 3:
+					{
+						Entity::setFillColor(entities[index], 0x0000FFFF);
+						break;
+					}
+					default:
+					{
+						//assert false
+						break;
+					}
+				}
+			}
 		));
-		rootComponent->sizeMode = Component::SizeMode_FixedAspectRatio;
-		rootComponent->setRelativeSize(entities, Vector2(1.0f, 1.0f));
-		rootComponent->setOffsetSize(entities, Vector2(-10.0f, -10.0f));
-		rootComponent->setRelativePosition(entities, Vector2(0.5f, 0.5f));
-		rootComponent->setAnchorPoint(entities, Vector2(0.5f, 0.5f));
+		entityGrid->sizeMode = Component::SizeMode_FixedAspectRatio;
+		entityGrid->setRelativeSize(entities, Vector2(1.0f, 1.0f));
+		entityGrid->setOffsetSize(entities, Vector2(-10.0f, -10.0f));
+		entityGrid->setRelativePosition(entities, Vector2(0.5f, 0.5f));
+		entityGrid->setAnchorPoint(entities, Vector2(0.5f, 0.5f));
+		entityGrid->setCell(entities, 0, 0, 1);
+
+		rootComponent = entityGrid;
 	}
 };
 

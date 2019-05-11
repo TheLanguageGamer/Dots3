@@ -210,6 +210,64 @@ struct Entity
 		return entity;
 	}
 
+	static void setFillColor(Entity& entity, const uint32_t fillRgba)
+	{
+		switch (entity.type)
+		{
+			case Type::RoundedRectangle:
+			{
+				entity.id2 = fillRgba;
+				break;
+			}
+			default:
+			{
+				//assert false
+				break;
+			}
+		}
+	}
+
+	static void setPosition(Entity& entity, const Vector2& position)
+	{
+		switch (entity.type)
+		{
+			case Type::RoundedRectangle:
+			case Type::Rectangle:
+			case Type::StrokeCircle:
+			case Type::FillCircle:
+			case Type::Text:
+			{
+				entity.coord1 = position;
+				break;
+			}
+			default:
+			{
+				//assert false
+				break;
+			}
+		}
+	}
+
+	static void setSize(Entity& entity, const Vector2& size)
+	{
+		switch (entity.type)
+		{
+			case Type::RoundedRectangle:
+			case Type::Rectangle:
+			case Type::StrokeCircle:
+			case Type::FillCircle:
+			{
+				entity.coord3 = size;
+				break;
+			}
+			default:
+			{
+				//assert false
+				break;
+			}
+		}
+	}
+
 	static Entity component(uint32_t startIndex)
 	{
 		Entity entity;
@@ -1020,12 +1078,16 @@ struct TextComponent : DrawComponent
 struct EntityGrid : DrawComponent
 {
 	Vector2Int matrixSize;
+	std::function<void(std::vector<Entity>&, uint32_t, uint32_t)> onCellStateChange;
 
 	EntityGrid(
 		std::vector<Entity>& entities,
-		Vector2Int matrixSize)
+		Vector2Int matrixSize,
+		std::function<Entity()> initializeCell,
+		std::function<void(std::vector<Entity>&, uint32_t, uint32_t)> onCellStateChange)
 	: DrawComponent(entities)
 	, matrixSize(matrixSize)
+	, onCellStateChange(onCellStateChange)
 	{
 		float cellSpacing = 10.0f;
 		float padding = 2.0f;
@@ -1033,19 +1095,59 @@ struct EntityGrid : DrawComponent
 		{
 			for(int32_t j = 0; j < matrixSize.y; ++j)
 			{
-				entities.push_back(Entity::roundedRectangle(
-					Vector2(i*cellSpacing, j*cellSpacing),
-					Vector2(cellSpacing - padding, cellSpacing - padding),
-					3.0f,
-					1.0f,
-					0xFFFFFFFF,
-					0x55FFBB00
-				));
+				Vector2 position(i*cellSpacing, j*cellSpacing);
+				Vector2 size(cellSpacing - padding, cellSpacing - padding);
+				Entity entity = initializeCell();
+				Entity::setPosition(entity, position);
+				Entity::setSize(entity, size);
+				entities.push_back(entity);
 			}
 		}
 		setEndIndex(entities, entities.size() - 1);
 		screenSize = Vector2(matrixSize.x*cellSpacing, matrixSize.y*cellSpacing);
 		aspectRatio = (float)matrixSize.x/(float)matrixSize.y;
+	}
+
+	uint32_t getCellIndex(std::vector<Entity>& entities, uint32_t row, uint32_t column)
+	{
+		uint32_t index = getStartIndex(entities) + matrixSize.y*column + row + 1;
+		return index;
+	}
+
+	uint32_t getCell(std::vector<Entity>& entities, uint32_t row, uint32_t column)
+	{
+		if (row < 0 || column < 0 || row >= matrixSize.y || column >= matrixSize.x)
+		{
+			printf("invalid coordinate! %u x %u\n", row, column);
+		}
+		return (entities[getCellIndex(entities, row, column)].id3);
+	}
+
+	void setCell(std::vector<Entity>& entities, uint32_t row, uint32_t column, uint32_t state)
+	{
+		uint32_t index = getCellIndex(entities, row, column);
+		entities[index].id3 = state;
+		onCellStateChange(entities, index, state);
+	}
+
+	void stamp(
+		std::vector<Entity>& entities,
+		std::vector<std::vector<uint32_t>> shape,
+		Vector2Int offset)
+	{
+		for (int32_t row = 0; row < shape.size(); ++row)
+		{
+
+			for (int32_t column = 0; column < shape[row].size(); ++column)
+			{
+				setCell(entities, row+offset.y, column+offset.x, shape[row][column]);
+			}
+		}
+	}
+
+	bool isValidCoordinate(const Vector2Int& a)
+	{
+		return a.x >= 0 && a.y >= 0 && a.x < matrixSize.x && a.y < matrixSize.y;
 	}
 };
 
