@@ -87,6 +87,15 @@ struct Vector2Int
 	, y(y) {}
 };
 
+struct BoxInt
+{
+	Vector2Int position;
+	Vector2Int size;
+	BoxInt(const Vector2Int& position, const Vector2Int& size)
+	: position(position)
+	, size(size) {}
+};
+
 static bool doesPointIntersectRect(const Vector2& point,
 								   const Vector2& rectPosition,
 								   const Vector2& rectSize)
@@ -149,6 +158,25 @@ struct Entity
 		float height = fontSize;
 		entity.coord3 = Vector2(width, height);
 		return entity;
+	}
+
+	static void setText(Entity& entity, const std::string& text)
+	{
+		switch (entity.type)
+		{
+			case Type::Text:
+			{
+				entity.id2 = getIdForText(text);
+				float width = Engine_MeasureTextWidth(text.c_str(), entity.coord3.y);
+				entity.coord3.x = width;
+				break;
+			}
+			default:
+			{
+				//assert false
+				break;
+			}
+		}
 	}
 
 	static Entity fillCircle(
@@ -308,6 +336,12 @@ struct Component
 		SizeMode_Normal,
 		SizeMode_FixedAspectRatio,
 	};
+	enum PositionMode
+	{
+		PositionMode_Normal,
+		PositionMode_HorizontalBlock,
+		PositionMode_VerticalBlock,
+	};
 	int32_t _startIndex;
 	// int32_t endIndex;
 	Vector2 anchorPoint;
@@ -317,6 +351,7 @@ struct Component
 	Vector2 cachedParentPosition;
 	float aspectRatio;
 	SizeMode sizeMode;
+	PositionMode positionMode;
 
 	bool isDraggable;
 	bool isDragging;
@@ -336,6 +371,7 @@ struct Component
 	// , endIndex(entities.size())
 	, aspectRatio(0.0f)
 	, sizeMode(SizeMode_Normal)
+	, positionMode(PositionMode_Normal)
 	, isDraggable(false)
 	, isDragging(false)
 	, isClickable(false)
@@ -345,6 +381,26 @@ struct Component
 		entities.push_back(Entity::component(_startIndex));
 		setEndIndex(entities, entities.size()-1);
 		//printf("Component initialized3: %d -> %d\n", getStartIndex(entities), getEndIndex(entities));
+	}
+
+	Vector2 upperLeft()
+	{
+		return screenPosition;
+	}
+
+	Vector2 bottomLeft()
+	{
+		return Vector2(screenPosition.x, screenPosition.y + screenSize.y);
+	}
+
+	Vector2 upperRight()
+	{
+		return Vector2(screenPosition.x + screenSize.y, screenPosition.y);
+	}
+
+	Vector2 bottomRight()
+	{
+		return Vector2(screenPosition.x + screenSize.y, screenPosition.y + screenSize.y);
 	}
 
 	uint32_t getStartIndex(std::vector<Entity>& entities)
@@ -481,7 +537,7 @@ struct Component
 
 		float newX = parentPosition.x + (parentSize.x)*relativePosition.x - anchorPoint.x*screenSize.x + offsetPosition.x;
 		float newY = parentPosition.y + (parentSize.y)*relativePosition.y - anchorPoint.y*screenSize.y + offsetPosition.y;
-
+		printf("jhelms doLayoutCommon %4.2f, %4.2f, %4.2f, %4.2f, %4.2f\n", newX, parentPosition.x, relativePosition.x, screenSize.x, offsetSize.x);
 		screenPosition = Vector2(newX, newY);
 
 		applySizeMode();
@@ -489,9 +545,23 @@ struct Component
 
 	void doLayoutChildren(std::vector<Entity>& entities)
 	{
+		Vector2 effectiveScreenPosition = screenPosition;
 		for (auto child : children)
 		{
-			child->doLayout(entities, screenPosition, screenSize);
+			if (positionMode == PositionMode_VerticalBlock)
+			{
+				child->doLayout(entities, effectiveScreenPosition, screenSize);
+				effectiveScreenPosition.y = child->screenPosition.y + child->screenSize.y;
+			}
+			else if (positionMode == PositionMode_HorizontalBlock)
+			{
+				child->doLayout(entities, effectiveScreenPosition, screenSize);
+				effectiveScreenPosition.x = child->screenPosition.x + child->screenSize.x;
+			}
+			else
+			{
+				child->doLayout(entities, screenPosition, screenSize);
+			}
 		}
 	}
 
@@ -1070,6 +1140,13 @@ struct TextComponent : DrawComponent
 		setOffsetSize(entities, textEntity.coord3);
 	}
 
+	void setText(std::vector<Entity>& entities, const std::string& text)
+	{
+		Entity::setText(entities[getStartIndex(entities)+1], text);
+		setOffsetSize(entities, entities[getStartIndex(entities)+1].coord3);
+		relayout(entities);
+	}
+
 	void doLayoutEntities(
 		std::vector<Entity>& entities,
 		const Vector2& oldScreenPosition,
@@ -1125,6 +1202,64 @@ struct EntityGrid : DrawComponent
 		aspectRatio = (float)matrixSize.x/(float)matrixSize.y;
 	}
 
+	BoxInt getBoundingSquare(std::vector<Entity>& entities, uint32_t state, uint32_t mask)
+	{
+		int32_t minX = matrixSize.x;
+		int32_t maxX = -1;
+		int32_t minY = matrixSize.y;
+		int32_t maxY = -1;
+
+		for (int32_t i = 0; i < matrixSize.x; ++i)
+		{
+			for(int32_t j = 0; j < matrixSize.y; ++j)
+			{
+				if ((getCell(entities, j, i)&mask) == state)
+				{
+					minX = i < minX ? i : minX;
+					maxX = i > maxX ? i : maxX;
+					minY = j < minY ? j : minY;
+					maxY = j > maxY ? j : maxY;
+				}
+			}
+		}
+
+		int32_t width = maxX - minX;
+		int32_t height = maxY - minY;
+		if (width < height)
+		{
+			int32_t delta = height - width;
+			int32_t offByOne = delta % 2;
+			bool onRightSide = minX + width/2 > matrixSize.x/2;
+			minX -= delta/2 + (onRightSide ? offByOne : 0);
+			maxX += delta/2 + (onRightSide ? 0 : offByOne);
+			width = maxX - minX;
+			if (maxX >= matrixSize.x)
+			{
+				int32_t temp = maxX - matrixSize.x + 1;
+				maxX -= temp;
+				minX -= temp;
+			}
+			if (minX < 0)
+			{
+				int32_t temp = -minX;
+				maxX += temp;
+				minX += temp;
+			}
+		}
+		else if (height < width)
+		{
+			maxY += (width - height);
+			height = maxY - minY;
+			if (maxY >= matrixSize.y)
+			{
+				int32_t temp = maxY - matrixSize.y + 1;
+				maxY -= temp;
+				minY -= temp;
+			}
+		}
+		return BoxInt(Vector2Int(minX, minY), Vector2Int(width+1, height+1));
+	}
+
 	uint32_t getCellIndex(std::vector<Entity>& entities, uint32_t row, uint32_t column)
 	{
 		uint32_t index = getStartIndex(entities) + matrixSize.y*column + row + 1;
@@ -1157,6 +1292,7 @@ struct EntityGrid : DrawComponent
 
 			for (int32_t column = 0; column < shape[row].size(); ++column)
 			{
+				printf("jhelms %08x\n", shape[row][column]);
 				setCell(entities, row+offset.y, column+offset.x, shape[row][column]);
 			}
 		}

@@ -76,6 +76,179 @@ std::vector<std::vector<std::vector<uint32_t>>> getTetrominoes()
 	});
 }
 
+std::vector<std::vector<std::vector<uint32_t>>> getTttetrominoes()
+{
+	return std::vector<std::vector<std::vector<uint32_t>>>({
+		{
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Falling, TS_Empty},
+			{TS_Falling, TS_Falling, TS_Falling, TS_Falling, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+		},
+		{
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Falling, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Falling, TS_Falling, TS_Falling, TS_Falling},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+		},
+		{
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Falling, TS_Empty, TS_Empty},
+			{TS_Falling, TS_Falling, TS_Falling, TS_Falling, TS_Falling},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+		},
+		{
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Falling, TS_Falling, TS_Falling, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Falling, TS_Falling, TS_Falling},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+		},
+		{
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Falling, TS_Falling, TS_Falling},
+			{TS_Falling, TS_Falling, TS_Falling, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+		},
+		{
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Falling, TS_Falling, TS_Falling, TS_Empty},
+			{TS_Empty, TS_Falling, TS_Falling, TS_Falling, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+		},
+		{
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Falling, TS_Falling, TS_Falling, TS_Falling, TS_Falling},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+		},
+	});
+}
+
+std::vector<std::vector<std::vector<uint32_t>>> getPentominoes()
+{
+	return std::vector<std::vector<std::vector<uint32_t>>>({
+		{
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Falling, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Falling, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Falling, TS_Falling, TS_Falling, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+		},
+		{
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Falling, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Falling, TS_Falling, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Falling, TS_Falling, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+		},
+		{
+			{TS_Empty, TS_Empty, TS_Falling, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Falling, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Falling, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Falling, TS_Falling, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+		},
+		{
+			{TS_Empty, TS_Empty, TS_Falling, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Falling, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Falling, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Falling, TS_Falling, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+		},
+		{
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Falling, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Falling, TS_Falling, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Falling, TS_Falling, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+		},
+		{
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Falling, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Falling, TS_Falling, TS_Empty},
+			{TS_Empty, TS_Falling, TS_Falling, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+		},
+		{
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Falling, TS_Empty, TS_Falling, TS_Empty},
+			{TS_Empty, TS_Falling, TS_Falling, TS_Falling, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+		},
+		{
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Falling, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Falling, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Falling, TS_Falling, TS_Falling, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+		},
+		{
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Falling, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Falling, TS_Falling, TS_Falling, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Falling, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+		},
+		{
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Falling, TS_Falling, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Falling, TS_Falling, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Falling, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+		},
+		{
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Falling, TS_Falling, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Falling, TS_Falling, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Falling, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+		},
+		{
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Falling, TS_Falling, TS_Falling, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Falling, TS_Falling, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+		},
+		{
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Falling, TS_Falling, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Falling, TS_Falling, TS_Falling, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+		},
+		{
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Falling, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Falling, TS_Falling, TS_Falling, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Falling, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+		},
+		{
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Falling, TS_Empty},
+			{TS_Empty, TS_Falling, TS_Falling, TS_Falling, TS_Empty},
+			{TS_Empty, TS_Falling, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+		},
+		{
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Falling, TS_Falling, TS_Falling, TS_Falling, TS_Falling},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+		},
+	});
+}
+
 TetrisConfiguration getVanillaTetris()
 {
 	TetrisConfiguration configuration;
@@ -84,6 +257,28 @@ TetrisConfiguration getVanillaTetris()
 	configuration.activeColumnSpan = Vector2Int(0, 9);
 	configuration.shapes = getTetrominoes();
 	configuration.visible = false;
+	return configuration;
+}
+
+TetrisConfiguration getTttetris()
+{
+	TetrisConfiguration configuration;
+	configuration.mode = TetrisConfiguration::Regular;
+	configuration.visible = false;
+	configuration.boardSize = Vector2Int(15, 24);
+	configuration.activeColumnSpan = Vector2Int(0, 9);
+	configuration.shapes = getTttetrominoes();
+	return configuration;
+}
+
+TetrisConfiguration getPentris()
+{
+	TetrisConfiguration configuration;
+	configuration.mode = TetrisConfiguration::Regular;
+	configuration.visible = false;
+	configuration.boardSize = Vector2Int(13, 24);
+	configuration.activeColumnSpan = Vector2Int(0, 12);
+	configuration.shapes = getPentominoes();
 	return configuration;
 }
 
@@ -119,6 +314,10 @@ struct PlayTetris : Screen
 	uint32_t level;
 	uint32_t lines;
 	uint32_t score;
+
+	std::shared_ptr<struct TextComponent> levelValue;
+	std::shared_ptr<struct TextComponent> linesValue;
+	std::shared_ptr<struct TextComponent> scoreValue;
 
 	TetrisConfiguration configuration;
 	std::vector<std::vector<uint32_t>> currentShape;
@@ -176,6 +375,42 @@ struct PlayTetris : Screen
 		rootComponent->setRelativeSize(entities, Vector2(1.0f, 1.0f));
 		rootComponent->addChild(entities, entityGrid);
 
+		auto textContainer = std::shared_ptr<struct Component>(new struct Component(entities));
+		textContainer->setRelativePosition(entities, Vector2(0.0f, 0.0f));
+		textContainer->setOffsetPosition(entities, Vector2(-10.0f, 50.0f));
+		textContainer->positionMode = Component::PositionMode_VerticalBlock;
+		entityGrid->addChild(entities, textContainer);
+
+		auto levelLabel = std::shared_ptr<struct TextComponent>(
+			new TextComponent(entities, "LEVEL", 0xAAAAAAFF, 30.0f));
+		levelLabel->setAnchorPoint(entities, Vector2(1.0f, 0.0f));
+		textContainer->addChild(entities, levelLabel);
+
+		levelValue = std::shared_ptr<struct TextComponent>(
+			new TextComponent(entities, "1", 0xFFFFFFFF, 30.0f));
+		levelValue->setAnchorPoint(entities, Vector2(1.0f, 0.0f));
+		textContainer->addChild(entities, levelValue);
+
+		auto linesLabel = std::shared_ptr<struct TextComponent>(
+			new TextComponent(entities, "LINES", 0xAAAAAAFF, 30.0f));
+		linesLabel->setAnchorPoint(entities, Vector2(1.0f, 0.0f));
+		textContainer->addChild(entities, linesLabel);
+
+		linesValue = std::shared_ptr<struct TextComponent>(
+			new TextComponent(entities, "0", 0xFFFFFFFF, 30.0f));
+		linesValue->setAnchorPoint(entities, Vector2(1.0f, 0.0f));
+		textContainer->addChild(entities, linesValue);
+
+		auto scoreLabel = std::shared_ptr<struct TextComponent>(
+			new TextComponent(entities, "SCORE", 0xAAAAAAFF, 30.0f));
+		scoreLabel->setAnchorPoint(entities, Vector2(1.0f, 0.0f));
+		textContainer->addChild(entities, scoreLabel);
+
+		scoreValue = std::shared_ptr<struct TextComponent>(
+			new TextComponent(entities, "0", 0xFFFFFFFF, 30.0f));
+		scoreValue->setAnchorPoint(entities, Vector2(1.0f, 0.0f));
+		textContainer->addChild(entities, scoreValue);
+
 		stampRandomShape();
 	}
 
@@ -204,14 +439,19 @@ struct PlayTetris : Screen
 
 	void stampRandomShape()
 	{
+		static uint32_t index = 0;
+		index %= configuration.shapes.size();
 		currentOffset = Vector2Int(entityGrid->matrixSize.x/2-2, 0);
-		auto shape = configuration.shapes[shapePrDist(rng)];
-
+		//auto shape = configuration.shapes[shapePrDist(rng)];
+		printf("jhelms stamping %u, %lu, %lu\n", index, configuration.shapes.size(), sizeof(configuration.shapes[index]));
+		auto shape = configuration.shapes[index];
+		printf("jhelms have shape\n");
 		entityGrid->stamp(entities, shape, currentOffset);
 		currentShape = shape;
+		index += 1;
 	}
 
-	void updatePrograss(uint32_t rowsCleared)
+	void updateProgress(uint32_t rowsCleared)
 	{
 		lines += rowsCleared;
 		level = lines/10 + 1;
@@ -241,6 +481,10 @@ struct PlayTetris : Screen
 		}
 
 		period = 700.0/(1.0 + 2.0/3.0*((float)level-1.0));
+
+		levelValue->setText(entities, std::to_string(level));
+		linesValue->setText(entities, std::to_string(lines));
+		scoreValue->setText(entities, std::to_string(score));
 	}
 
 	void clearRows()
@@ -265,7 +509,7 @@ struct PlayTetris : Screen
 				row += 1;
 			}
 		}
-		updatePrograss(rowsCleared);
+		updateProgress(rowsCleared);
 	}
 
 	void ground()
@@ -525,6 +769,7 @@ struct PlayTetris : Screen
 			}
 			else
 			{
+				printf("jhelms will moveDown\n");
 				bool couldMoveLeft = canMoveLeft(activeState);
 				bool couldMoveRight = canMoveRight(activeState);
 				moveDown();
@@ -578,10 +823,10 @@ struct PlayTetris : Screen
 			case SDLK_w:
 			{
 				uint32_t rotatingState = configuration.mode == TetrisConfiguration::RotatingGround ? TS_Grounded : TS_Falling;
-				//BoxInt box = entityGrid->getBoundingSquare(entities, rotatingState);
-				if (canRotate(currentOffset, 4, rotatingState))
+				BoxInt box = entityGrid->getBoundingSquare(entities, rotatingState, 0xFF);
+				if (canRotate(box.position, box.size.x, rotatingState))
 				{
-					rotate(currentOffset, 4, rotatingState);
+					rotate(box.position, box.size.x, rotatingState);
 				}
 				break;
 			}
@@ -593,14 +838,6 @@ struct PlayTetris : Screen
 	}
 };
 
-struct Mode1 : Screen
-{
-	Mode1()
-	{
-		entities.push_back(Entity::fillCircle(Vector2(50.0f, 50.0f), 30.0f, 0xAA88FFFF));
-	}
-};
-
 std::function<void()> loop;
 void main_loop() { loop(); }
 
@@ -608,7 +845,8 @@ int main()
 {
 	Game game;
 	std::shared_ptr<Screen> vanilla = std::shared_ptr<Screen>(new PlayTetris(getVanillaTetris()));
-	std::shared_ptr<Screen> mode1 = std::shared_ptr<Screen>(new Mode1());
+	std::shared_ptr<Screen> pentris = std::shared_ptr<Screen>(new PlayTetris(getPentris()));
+	std::shared_ptr<Screen> tttetris = std::shared_ptr<Screen>(new PlayTetris(getTttetris()));
 	game.setScreen(vanilla);
 
 	int32_t mode = 0;
@@ -628,7 +866,12 @@ int main()
 				}
 				case 1:
 				{
-					game.setScreen(mode1);
+					game.setScreen(tttetris);
+					break;
+				}
+				case 2:
+				{
+					game.setScreen(pentris);
 					break;
 				}
 			}
