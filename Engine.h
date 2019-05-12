@@ -227,6 +227,23 @@ struct Entity
 		}
 	}
 
+	static uint32_t getFillAlpha(Entity& entity)
+	{
+		switch (entity.type)
+		{
+			case Type::RoundedRectangle:
+			{
+				return entity.id2 & 0xFF;
+			}
+			default:
+			{
+				//assert false
+				break;
+			}
+		}
+		return 0;
+	}
+
 	static void setPosition(Entity& entity, const Vector2& position)
 	{
 		switch (entity.type)
@@ -1183,13 +1200,16 @@ struct Screen
 		}
 	}
 
-	void doStep(float timeDelta)
+	void doStep(float timeDelta, const std::vector<bool>& keyStates)
 	{
+		loop(timeDelta, keyStates);
 		if (rootComponent)
 		{
 			rootComponent->doStep(entities, timeDelta);
 		}
 	}
+
+	virtual void loop(float timeDelta, const std::vector<bool>& keyStates) {};
 
 	void onMouseMove(const Vector2& position, const Vector2& delta)
 	{
@@ -1214,13 +1234,20 @@ struct Screen
 			rootComponent->onMouseButton1Up(entities, position);
 		}
 	}
+
+	virtual void onKeyUp(SDL_Keycode key) { }
+
+	virtual void onKeyDown(SDL_Keycode key) { }
 };
 
 struct Game
 {
+	std::vector<bool> keyStates;
+
 	Game()
 	: count(0)
 	, lastTime(emscripten_get_now())
+	, keyStates(std::vector<bool>(4096, false))
 	{
 		Engine_Init();
 		SDL_Init(SDL_INIT_VIDEO);
@@ -1316,6 +1343,18 @@ struct Game
 		}
 	}
 
+	void onKeyUp(SDL_Keycode key)
+	{
+		keyStates[key] = false;
+		screen->onKeyUp(key);
+	}
+
+	void onKeyDown(SDL_Keycode key)
+	{
+		keyStates[key] = true;
+		screen->onKeyDown(key);
+	}
+
 	void pollEvents()
 	{
 		SDL_Event e;
@@ -1330,12 +1369,12 @@ struct Game
 				}
 				case SDL_KEYUP:
 				{
-					//
+					onKeyUp(e.key.keysym.sym);
 					break;
 				}
 				case SDL_KEYDOWN:
 				{
-					//
+					onKeyDown(e.key.keysym.sym);
 					break;
 				}
 				case SDL_MOUSEMOTION:
@@ -1400,7 +1439,7 @@ struct Game
 		
 		resize();
 		pollEvents();
-		screen->doStep(currentTime-lastTime);
+		screen->doStep(currentTime-lastTime, keyStates);
 		draw(currentTime, count);
 		
 		lastTime = currentTime;

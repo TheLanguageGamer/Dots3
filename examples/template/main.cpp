@@ -1,5 +1,3 @@
-// /path/to/emcc main.cpp -std=c++11 -O2 -I../../ -s USE_SDL=1 -s WASM=0 -s --js-library ../../library_engine.js -s ASSERTIONS=2 -o main.js
-
 #include "Engine.h"
 
 struct Mode0 : Screen
@@ -26,7 +24,7 @@ int main()
 	Game game;
 	std::shared_ptr<Screen> mode0 = std::shared_ptr<Screen>(new Mode0());
 	std::shared_ptr<Screen> mode1 = std::shared_ptr<Screen>(new Mode1());
-	game.setScreen(mode0);
+	game.setScreen(mode1);
 
 	int32_t mode = 0;
 	loop = [&]
