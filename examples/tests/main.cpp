@@ -43,36 +43,71 @@ struct TestTextLabel : Screen
 		printf("initializing TestTextLabel\n");
 		entities.push_back(Entity::fillCircle(Vector2(50.0f, 50.0f), 30.0f, 0x99FF99FF));
 		printf("1\n");
-		rootComponent = std::shared_ptr<struct Component>(new RectangleComponent(entities, 0xFFFFFFFF));
+		rootComponent = std::shared_ptr<struct Component>(new struct Component(entities));
+		rootComponent->setRelativeSize(entities, Vector2(1.0f, 1.0f));
+
+		auto bg1 = std::shared_ptr<struct Component>(new RectangleComponent(entities, 0xFFFFFFFF));
 		printf("2\n");
-		rootComponent->setRelativeSize(entities, Vector2(0.5f, 0.5f));
-		rootComponent->setRelativePosition(entities, Vector2(0.5f, 0.5f));
-		rootComponent->setAnchorPoint(entities, Vector2(0.5f, 0.5f));
+		bg1->setRelativeSize(entities, Vector2(0.5f, 0.5f));
+		bg1->setRelativePosition(entities, Vector2(0.5f, 0.5f));
+		bg1->setAnchorPoint(entities, Vector2(0.5f, 0.5f));
+		rootComponent->addChild(entities, bg1);
 
 		printf("3\n");
 
 		auto ulText = std::shared_ptr<struct Component>(new TextComponent(entities, "Hello World!", 0x0000FFFF, 20.0f));
-		rootComponent->addChild(entities, ulText);
+		ulText->sizeMode = Component::SizeMode_SizeToContents;
+		bg1->addChild(entities, ulText);
 
 		auto urText = std::shared_ptr<struct Component>(new TextComponent(entities, "Hello World!", 0x0000FFFF, 20.0f));
+		urText->sizeMode = Component::SizeMode_SizeToContents;
 		urText->setRelativePosition(entities, Vector2(1.0f, 0.0f));
 		urText->setAnchorPoint(entities, Vector2(1.0f, 0.0f));
-		rootComponent->addChild(entities, urText);
+		bg1->addChild(entities, urText);
 
 		auto blText = std::shared_ptr<struct Component>(new TextComponent(entities, "Hello World!", 0x0000FFFF, 20.0f));
+		blText->sizeMode = Component::SizeMode_SizeToContents;
 		blText->setRelativePosition(entities, Vector2(0.0f, 1.0f));
 		blText->setAnchorPoint(entities, Vector2(0.0f, 1.0f));
-		rootComponent->addChild(entities, blText);
+		bg1->addChild(entities, blText);
 
 		auto brText = std::shared_ptr<struct Component>(new TextComponent(entities, "Hello World!", 0x0000FFFF, 20.0f));
+		brText->sizeMode = Component::SizeMode_SizeToContents;
 		brText->setRelativePosition(entities, Vector2(1.0f, 1.0f));
 		brText->setAnchorPoint(entities, Vector2(1.0f, 1.0f));
-		rootComponent->addChild(entities, brText);
+		bg1->addChild(entities, brText);
 
 		auto cText = std::shared_ptr<struct Component>(new TextComponent(entities, "Hello World!", 0x0000FFFF, 20.0f));
+		cText->sizeMode = Component::SizeMode_SizeToContents;
 		cText->setRelativePosition(entities, Vector2(0.5f, 0.5f));
 		cText->setAnchorPoint(entities, Vector2(0.5f, 0.5f));
-		rootComponent->addChild(entities, cText);
+		bg1->addChild(entities, cText);
+
+		auto bg2 = std::shared_ptr<struct Component>(new RectangleComponent(entities, 0xFFFFFFFF));
+		printf("2\n");
+		bg2->setOffsetSize(entities, Vector2(10.0f, 10.0f));
+		bg2->setRelativePosition(entities, Vector2(1.0f, 0.0f));
+		bg2->setOffsetPosition(entities, Vector2(-10.0f, 10.0f));
+		bg2->setAnchorPoint(entities, Vector2(1.0f, 0.0f));
+		bg2->enableClicking(
+			nullptr,
+			nullptr,
+			[this, bg2](const Vector2&){
+				Vector2 size = bg2->getOffsetSize(entities);
+				Vector2 newSize = Vector2(size.x+5.0f, size.y+5.0f);
+				printf("click! %4.2fx%4.2f\n", newSize.x, newSize.y);
+				bg2->setOffsetSize(entities, newSize);
+				bg2->relayout(entities);
+			}
+		);
+		rootComponent->addChild(entities, bg2);
+
+		auto fitToContainer = std::shared_ptr<struct Component>(
+			new TextComponent(entities, "x", 0x0000FFFF, 10.0f));
+		fitToContainer->setOffsetPosition(entities, Vector2(0.5, 0.5f));
+		bg2->addChild(entities, fitToContainer);
+
+
 	}
 };
 

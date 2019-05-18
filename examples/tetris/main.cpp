@@ -282,6 +282,17 @@ TetrisConfiguration getPentris()
 	return configuration;
 }
 
+TetrisConfiguration getSirTet()
+{
+	TetrisConfiguration configuration;
+	configuration.mode = TetrisConfiguration::RotatingGround;
+	configuration.visible = false;
+	configuration.boardSize = Vector2Int(20, 24);
+	configuration.activeColumnSpan = Vector2Int(5, 14);
+	configuration.shapes = getTetrominoes();
+	return configuration;
+}
+
 std::vector<uint32_t> colors({
 	0xe6194B00,
 	0x3cb44b00,
@@ -383,35 +394,83 @@ struct PlayTetris : Screen
 
 		auto levelLabel = std::shared_ptr<struct TextComponent>(
 			new TextComponent(entities, "LEVEL", 0xAAAAAAFF, 30.0f));
+		levelLabel->sizeMode = Component::SizeMode_SizeToContents;
 		levelLabel->setAnchorPoint(entities, Vector2(1.0f, 0.0f));
 		textContainer->addChild(entities, levelLabel);
 
 		levelValue = std::shared_ptr<struct TextComponent>(
 			new TextComponent(entities, "1", 0xFFFFFFFF, 30.0f));
+		levelValue->sizeMode = Component::SizeMode_SizeToContents;
 		levelValue->setAnchorPoint(entities, Vector2(1.0f, 0.0f));
 		textContainer->addChild(entities, levelValue);
 
 		auto linesLabel = std::shared_ptr<struct TextComponent>(
 			new TextComponent(entities, "LINES", 0xAAAAAAFF, 30.0f));
+		linesLabel->sizeMode = Component::SizeMode_SizeToContents;
 		linesLabel->setAnchorPoint(entities, Vector2(1.0f, 0.0f));
 		textContainer->addChild(entities, linesLabel);
 
 		linesValue = std::shared_ptr<struct TextComponent>(
 			new TextComponent(entities, "0", 0xFFFFFFFF, 30.0f));
+		linesValue->sizeMode = Component::SizeMode_SizeToContents;
 		linesValue->setAnchorPoint(entities, Vector2(1.0f, 0.0f));
 		textContainer->addChild(entities, linesValue);
 
 		auto scoreLabel = std::shared_ptr<struct TextComponent>(
 			new TextComponent(entities, "SCORE", 0xAAAAAAFF, 30.0f));
+		scoreLabel->sizeMode = Component::SizeMode_SizeToContents;
 		scoreLabel->setAnchorPoint(entities, Vector2(1.0f, 0.0f));
 		textContainer->addChild(entities, scoreLabel);
 
 		scoreValue = std::shared_ptr<struct TextComponent>(
 			new TextComponent(entities, "0", 0xFFFFFFFF, 30.0f));
+		scoreValue->sizeMode = Component::SizeMode_SizeToContents;
 		scoreValue->setAnchorPoint(entities, Vector2(1.0f, 0.0f));
 		textContainer->addChild(entities, scoreValue);
 
 		stampRandomShape();
+		updateProgress(0);
+
+		if (configuration.mode == TetrisConfiguration::RotatingGround)
+		{			
+			while (canMoveDown())
+			{
+				moveDown();
+			}
+			ground();
+			stampRandomShape();
+		}
+
+		entityGrid->setCell(entities, 15, 0, 0xFF88AA00|TS_Grounded);
+		entityGrid->setCell(entities, 15, 1, 0xFF88AA00|TS_Grounded);
+		entityGrid->setCell(entities, 15, 2, 0xFF88AA00|TS_Grounded);
+		entityGrid->setCell(entities, 15, 3, 0xFF88AA00|TS_Grounded);
+		entityGrid->setCell(entities, 15, 4, 0xFF88AA00|TS_Grounded);
+	}
+
+	void reset()
+	{
+		lines = 0;
+		score = 0;
+		updateProgress(0);
+		for (int32_t row = 0; row < entityGrid->matrixSize.y; ++row)
+		{
+			for (int32_t column = 0; column < entityGrid->matrixSize.x; ++column)
+			{
+				entityGrid->setCell(entities, row, column, TS_Empty);
+			}
+		}
+		stampRandomShape();
+
+		if (configuration.mode == TetrisConfiguration::RotatingGround)
+		{			
+			while (canMoveDown())
+			{
+				moveDown();
+			}
+			ground();
+			stampRandomShape();
+		}
 	}
 
 	void setupShapes()
@@ -439,16 +498,29 @@ struct PlayTetris : Screen
 
 	void stampRandomShape()
 	{
-		static uint32_t index = 0;
-		index %= configuration.shapes.size();
+		//static uint32_t index = 0;
+		//index %= configuration.shapes.size();
 		currentOffset = Vector2Int(entityGrid->matrixSize.x/2-2, 0);
-		//auto shape = configuration.shapes[shapePrDist(rng)];
-		printf("jhelms stamping %u, %lu, %lu\n", index, configuration.shapes.size(), sizeof(configuration.shapes[index]));
-		auto shape = configuration.shapes[index];
-		printf("jhelms have shape\n");
+		auto shape = configuration.shapes[shapePrDist(rng)];
+		//printf("jhelms stamping %u, %lu, %lu\n", index, configuration.shapes.size(), sizeof(configuration.shapes[index]));
+		//auto shape = configuration.shapes[index];
 		entityGrid->stamp(entities, shape, currentOffset);
 		currentShape = shape;
-		index += 1;
+
+		if (configuration.mode == TetrisConfiguration::RotatingGround)
+		{
+			uint32_t count = rotationPrDist(rng);
+			for (uint32_t i = 0; i < count; ++i)
+			{
+				uint32_t rotatingState = TS_Falling;
+				BoxInt box = entityGrid->getBoundingSquare(entities, rotatingState, 0xFF);
+				if (canRotate(box.position, box.size.x, rotatingState))
+				{
+					rotate(box.position, box.size.x, rotatingState);
+					clearRows();
+				}
+			}
+		}
 	}
 
 	void updateProgress(uint32_t rowsCleared)
@@ -595,6 +667,7 @@ struct PlayTetris : Screen
 				if (currentMasked == movingState && newMasked != movingState)
 				{
 					newState = TS_Empty;
+					newMasked = TS_Empty;
 				}
 				if ((currentMasked == movingState && newMasked == TS_Empty)
 					|| (currentMasked == TS_Empty && newMasked == movingState))
@@ -619,6 +692,7 @@ struct PlayTetris : Screen
 				if (currentMasked == activeState && newMasked != activeState && newMasked != TS_Empty)
 				{
 					newState = TS_Empty;
+					newMasked = TS_Empty;
 				}
 				if ((currentMasked == activeState && newMasked == TS_Empty)
 					|| (currentMasked == TS_Empty && newMasked == activeState))
@@ -628,6 +702,11 @@ struct PlayTetris : Screen
 			}
 		}
 		currentOffset.x -= 1;
+		if (configuration.mode == TetrisConfiguration::RotatingGround)
+		{
+			activeColumnSpan.x -= 1;
+			activeColumnSpan.y -= 1;
+		}
 	}
 
 	void moveRight(uint32_t activeState)
@@ -643,6 +722,7 @@ struct PlayTetris : Screen
 				if (currentMasked == activeState && newMasked != activeState && newMasked != TS_Empty)
 				{
 					newState = TS_Empty;
+					newMasked = TS_Empty;
 				}
 				if ((currentMasked == activeState && newMasked == TS_Empty)
 					|| (currentMasked == TS_Empty && newMasked == activeState))
@@ -652,6 +732,11 @@ struct PlayTetris : Screen
 			}
 		}
 		currentOffset.x += 1;
+		if (configuration.mode == TetrisConfiguration::RotatingGround)
+		{
+			activeColumnSpan.x += 1;
+			activeColumnSpan.y += 1;
+		}
 	}
 
 	bool canSwap(const Vector2Int a, Vector2Int b, uint32_t activeState)
@@ -827,6 +912,15 @@ struct PlayTetris : Screen
 				if (canRotate(box.position, box.size.x, rotatingState))
 				{
 					rotate(box.position, box.size.x, rotatingState);
+					if (configuration.mode == TetrisConfiguration::RotatingGround)
+					{
+						int32_t activeColumnCenter = activeColumnSpan.x + (activeColumnSpan.y - activeColumnSpan.x + 1)/2;
+						int32_t rotatedCenter = box.position.x + box.size.x / 2;
+						int32_t delta = rotatedCenter - activeColumnCenter;
+						activeColumnSpan.x += delta;
+						activeColumnSpan.y += delta;
+					}
+					clearRows();
 				}
 				break;
 			}
@@ -847,6 +941,7 @@ int main()
 	std::shared_ptr<Screen> vanilla = std::shared_ptr<Screen>(new PlayTetris(getVanillaTetris()));
 	std::shared_ptr<Screen> pentris = std::shared_ptr<Screen>(new PlayTetris(getPentris()));
 	std::shared_ptr<Screen> tttetris = std::shared_ptr<Screen>(new PlayTetris(getTttetris()));
+	std::shared_ptr<Screen> sirtet = std::shared_ptr<Screen>(new PlayTetris(getSirTet()));
 	game.setScreen(vanilla);
 
 	int32_t mode = 0;
@@ -872,6 +967,11 @@ int main()
 				case 2:
 				{
 					game.setScreen(pentris);
+					break;
+				}
+				case 3:
+				{
+					game.setScreen(sirtet);
 					break;
 				}
 			}

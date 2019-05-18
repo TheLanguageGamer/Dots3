@@ -335,6 +335,7 @@ struct Component
 	{
 		SizeMode_Normal,
 		SizeMode_FixedAspectRatio,
+		SizeMode_SizeToContents,
 	};
 	enum PositionMode
 	{
@@ -495,6 +496,7 @@ struct Component
 		switch (sizeMode)
 		{
 			case SizeMode_Normal:
+			case SizeMode_SizeToContents:
 			{
 				break;
 			}
