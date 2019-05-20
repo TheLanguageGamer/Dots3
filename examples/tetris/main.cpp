@@ -433,19 +433,21 @@ struct PlayTetris : Screen
 
 		if (configuration.mode == TetrisConfiguration::RotatingGround)
 		{			
-			while (canMoveDown())
-			{
-				moveDown();
-			}
-			ground();
-			stampRandomShape();
+			// while (canMoveDown())
+			// {
+			// 	moveDown();
+			// }
+			// ground();
+			// stampRandomShape();
+			entityGrid->setCell(entities, 20, 5, 0xFF88AA00|TS_Grounded);
+			entityGrid->setCell(entities, 20, 6, 0xAA88FF00|TS_Grounded);
 		}
 
-		entityGrid->setCell(entities, 15, 0, 0xFF88AA00|TS_Grounded);
-		entityGrid->setCell(entities, 15, 1, 0xFF88AA00|TS_Grounded);
-		entityGrid->setCell(entities, 15, 2, 0xFF88AA00|TS_Grounded);
-		entityGrid->setCell(entities, 15, 3, 0xFF88AA00|TS_Grounded);
-		entityGrid->setCell(entities, 15, 4, 0xFF88AA00|TS_Grounded);
+		// entityGrid->setCell(entities, 15, 0, 0xFF88AA00|TS_Grounded);
+		// entityGrid->setCell(entities, 15, 1, 0xFF88AA00|TS_Grounded);
+		// entityGrid->setCell(entities, 15, 2, 0xFF88AA00|TS_Grounded);
+		// entityGrid->setCell(entities, 15, 3, 0xFF88AA00|TS_Grounded);
+		// entityGrid->setCell(entities, 15, 4, 0xFF88AA00|TS_Grounded);
 	}
 
 	void reset()
@@ -653,7 +655,7 @@ struct PlayTetris : Screen
 		return true;
 	}
 
-	void moveDown(int32_t fromRow = -1, uint32_t movingState = TS_Falling)
+	void moveDown(int32_t fromRow = -1, uint32_t activeState = TS_Falling)
 	{
 		fromRow = fromRow < 0 ? entityGrid->matrixSize.y-1 : fromRow;
 		for (int32_t row = fromRow; row >= 0; --row)
@@ -664,13 +666,14 @@ struct PlayTetris : Screen
 				uint32_t newState = row > 0 ? entityGrid->getCell(entities, row-1, column) : TS_Empty;
 				uint32_t currentMasked = currentState&0xFF;
 				uint32_t newMasked = newState&0xFF;
-				if (currentMasked == movingState && newMasked != movingState)
+				if (currentMasked == activeState && newMasked != activeState)
 				{
 					newState = TS_Empty;
 					newMasked = TS_Empty;
 				}
-				if ((currentMasked == movingState && newMasked == TS_Empty)
-					|| (currentMasked == TS_Empty && newMasked == movingState))
+				if ((currentMasked == activeState && newMasked == TS_Empty)
+					|| (currentMasked == TS_Empty && newMasked == activeState)
+					|| (currentMasked == activeState && newMasked == activeState))
 				{
 					entityGrid->setCell(entities, row, column, newState);
 				}
@@ -695,7 +698,8 @@ struct PlayTetris : Screen
 					newMasked = TS_Empty;
 				}
 				if ((currentMasked == activeState && newMasked == TS_Empty)
-					|| (currentMasked == TS_Empty && newMasked == activeState))
+					|| (currentMasked == TS_Empty && newMasked == activeState)
+					|| (currentMasked == activeState && newMasked == activeState))
 				{
 					entityGrid->setCell(entities, row, column, newState);
 				}
@@ -725,7 +729,8 @@ struct PlayTetris : Screen
 					newMasked = TS_Empty;
 				}
 				if ((currentMasked == activeState && newMasked == TS_Empty)
-					|| (currentMasked == TS_Empty && newMasked == activeState))
+					|| (currentMasked == TS_Empty && newMasked == activeState)
+					|| (currentMasked == activeState && newMasked == activeState))
 				{
 					entityGrid->setCell(entities, row, column, newState);
 				}
@@ -737,30 +742,6 @@ struct PlayTetris : Screen
 			activeColumnSpan.x += 1;
 			activeColumnSpan.y += 1;
 		}
-	}
-
-	bool canSwap(const Vector2Int a, Vector2Int b, uint32_t activeState)
-	{
-		bool aInBounds = entityGrid->isValidCoordinate(a);
-		bool bInBounds = entityGrid->isValidCoordinate(b);
-		if (!aInBounds && !bInBounds)
-		{
-			return true;
-		}
-		if (aInBounds && !bInBounds)
-		{
-			uint32_t maskedA = entityGrid->getCell(entities, a.y, a.x)&0xFF;
-			return maskedA != activeState;
-		}
-		if (bInBounds && !aInBounds)
-		{
-			uint32_t maskedB = entityGrid->getCell(entities, b.y, b.x)&0xFF;
-			return maskedB != activeState;
-		}
-		uint32_t maskedA = entityGrid->getCell(entities, a.y, a.x);
-		uint32_t maskedB = entityGrid->getCell(entities, b.y, b.x);
-		return !((maskedA == activeState && (maskedB != activeState && maskedB != TS_Empty))
-				|| (maskedB == activeState && (maskedA != activeState && maskedA != TS_Empty)));
 	}
 
 	void setCellAux(Vector2Int coord, int64_t newState, uint32_t activeState)
@@ -805,6 +786,30 @@ struct PlayTetris : Screen
 				setCellAux(coord4, state1, activeState);
 			}
 		}
+	}
+
+	bool canSwap(const Vector2Int a, Vector2Int b, uint32_t activeState)
+	{
+		bool aInBounds = entityGrid->isValidCoordinate(a);
+		bool bInBounds = entityGrid->isValidCoordinate(b);
+		if (!aInBounds && !bInBounds)
+		{
+			return true;
+		}
+		if (aInBounds && !bInBounds)
+		{
+			uint32_t maskedA = entityGrid->getCell(entities, a.y, a.x)&0xFF;
+			return maskedA == TS_Empty;
+		}
+		if (bInBounds && !aInBounds)
+		{
+			uint32_t maskedB = entityGrid->getCell(entities, b.y, b.x)&0xFF;
+			return maskedB == TS_Empty;
+		}
+		uint32_t maskedA = entityGrid->getCell(entities, a.y, a.x)&0xFF;
+		uint32_t maskedB = entityGrid->getCell(entities, b.y, b.x)&0xFF;
+		return !((maskedA == activeState && (maskedB != activeState && maskedB != TS_Empty))
+				|| (maskedB == activeState && (maskedA != activeState && maskedA != TS_Empty)));
 	}
 
 	bool canRotate(const Vector2Int& offset, uint32_t shapeWidth, uint32_t activeState)
@@ -854,7 +859,7 @@ struct PlayTetris : Screen
 			}
 			else
 			{
-				printf("jhelms will moveDown\n");
+				//printf("jhelms will moveDown\n");
 				bool couldMoveLeft = canMoveLeft(activeState);
 				bool couldMoveRight = canMoveRight(activeState);
 				moveDown();
