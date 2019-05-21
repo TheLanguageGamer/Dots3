@@ -1173,6 +1173,8 @@ struct TextComponent : DrawComponent
 
 struct EntityGrid : DrawComponent
 {
+	static const uint32_t EMPTY = 0;
+
 	Vector2Int matrixSize;
 	std::function<void(std::vector<Entity>&, uint32_t, uint32_t)> onCellStateChange;
 
@@ -1191,7 +1193,7 @@ struct EntityGrid : DrawComponent
 		{
 			for(int32_t j = 0; j < matrixSize.y; ++j)
 			{
-				Vector2 position(i*cellSpacing, j*cellSpacing);
+				Vector2 position(i*cellSpacing + padding/2.0, j*cellSpacing + padding/2.0);
 				Vector2 size(cellSpacing - padding, cellSpacing - padding);
 				Entity entity = initializeCell();
 				Entity::setPosition(entity, position);
@@ -1260,6 +1262,298 @@ struct EntityGrid : DrawComponent
 			}
 		}
 		return BoxInt(Vector2Int(minX, minY), Vector2Int(width+1, height+1));
+	}
+
+	bool canMoveUp(std::vector<Entity>& entities, uint32_t activeState, uint32_t mask)
+	{
+		for (int32_t row = 0; row < matrixSize.y; ++row)
+		{
+			for(int32_t column = 0; column < matrixSize.x; ++column)
+			{
+				uint32_t newMasked = row > 0 ? getCell(entities, row+1, column)&mask : EMPTY;
+				uint32_t currentMasked = getCell(entities, row, column)&mask;
+				if ((newMasked == activeState && currentMasked != activeState && currentMasked != EMPTY)
+					|| (row == matrixSize.y-1 && currentMasked == activeState))
+				{
+					return false;
+				}
+			}
+		}
+		return true;
+	}
+
+	bool canMoveDown(std::vector<Entity>& entities, uint32_t activeState, uint32_t mask)
+	{
+		for (int32_t row = matrixSize.y-1; row >= 0; --row)
+		{
+			for(int32_t column = 0; column < matrixSize.x; ++column)
+			{
+				uint32_t newMasked = row > 0 ? getCell(entities, row-1, column)&mask : EMPTY;
+				uint32_t currentMasked = getCell(entities, row, column)&mask;
+				if ((newMasked == activeState && currentMasked != activeState && currentMasked != EMPTY)
+					|| (row == matrixSize.y-1 && currentMasked == activeState))
+				{
+					return false;
+				}
+			}
+		}
+		return true;
+	}
+
+	bool canMoveLeft(std::vector<Entity>& entities, uint32_t activeState, uint32_t mask)
+	{
+		for(int32_t column = 0; column < matrixSize.x; ++column)
+		{
+			for (int32_t row = matrixSize.y-1; row >= 0; --row)
+			{
+				uint32_t currentMasked = getCell(entities, row, column)&mask;
+				uint32_t newMasked = column < matrixSize.x-1 ? getCell(entities, row, column+1)&mask : EMPTY;
+				if ((newMasked == activeState && currentMasked != activeState && currentMasked != EMPTY)
+					|| (column == 0 && currentMasked == activeState))
+				{
+					return false;
+				}
+			}
+		}
+		return true;
+	}
+
+	bool canMoveRight(std::vector<Entity>& entities, uint32_t activeState, uint32_t mask)
+	{
+		for(int32_t column = matrixSize.x-1; column >= 0 ; --column)
+		{
+			for (int32_t row = matrixSize.y-1; row >= 0; --row)
+			{
+				uint32_t currentMasked = getCell(entities, row, column)&mask;
+				uint32_t newMasked = column > 0 ? getCell(entities, row, column-1)&mask : EMPTY;
+				if ((newMasked == activeState && currentMasked != activeState && currentMasked != EMPTY)
+					|| (column == matrixSize.x-1 && currentMasked == activeState))
+				{
+					return false;
+				}
+			}
+		}
+		return true;
+	}
+
+	bool canSwap(
+		std::vector<Entity>& entities,
+		const Vector2Int& a,
+		const Vector2Int& b,
+		uint32_t activeState,
+		uint32_t mask)
+	{
+		bool aInBounds = isValidCoordinate(a);
+		bool bInBounds = isValidCoordinate(b);
+		if (!aInBounds && !bInBounds)
+		{
+			return true;
+		}
+		if (aInBounds && !bInBounds)
+		{
+			uint32_t maskedA = getCell(entities, a.y, a.x)&mask;
+			return maskedA == EMPTY;
+		}
+		if (bInBounds && !aInBounds)
+		{
+			uint32_t maskedB = getCell(entities, b.y, b.x)&mask;
+			return maskedB == EMPTY;
+		}
+		uint32_t maskedA = getCell(entities, a.y, a.x)&mask;
+		uint32_t maskedB = getCell(entities, b.y, b.x)&mask;
+		return !((maskedA == activeState && (maskedB != activeState && maskedB != EMPTY))
+				|| (maskedB == activeState && (maskedA != activeState && maskedA != EMPTY)));
+	}
+
+	bool canRotate(
+		std::vector<Entity>& entities,
+		const Vector2Int& offset,
+		const uint32_t shapeWidth,
+		const uint32_t activeState,
+		const uint32_t mask)
+	{
+		if (offset.x < 0
+			|| offset.x + shapeWidth > matrixSize.x
+			|| offset.y < 0
+			|| offset.y + shapeWidth > matrixSize.y)
+		{
+			printf("Can't rotate: %d %d %d %d\n", offset.x, offset.y, offset.x + shapeWidth, offset.y + shapeWidth);
+			return false;
+		}
+		for(int32_t x = 0; x < shapeWidth; ++x)
+		{
+			for (int32_t y = x; y < shapeWidth-x-1; ++y)
+			{
+				Vector2Int coord1(offset.x + x, offset.y + y);
+				Vector2Int coord2(offset.x + y, offset.y + shapeWidth - 1 - x);
+				Vector2Int coord3(offset.x + shapeWidth - 1 - x, offset.y + shapeWidth - 1);
+				Vector2Int coord4(offset.x + shapeWidth - 1 - y, offset.y + x);
+
+				bool isFree = canSwap(entities, coord1, coord2, activeState, mask)
+					&& canSwap(entities, coord2, coord3, activeState, mask)
+					&& canSwap(entities, coord3, coord4, activeState, mask)
+					&& canSwap(entities, coord4, coord1, activeState, mask);
+				if (!isFree)
+				{
+					return false;
+				}
+			}
+		}
+		return true;
+	}
+
+	void setCellAux(
+		std::vector<Entity>& entities,
+		const Vector2Int coord,
+		const int64_t newState,
+		const uint32_t activeState,
+		const uint32_t mask)
+	{
+		if (newState < 0)
+		{
+			return;
+		}
+		if (!isValidCoordinate(coord))
+		{
+			return;
+		}
+		uint32_t newMasked = newState&mask;
+		uint32_t state = getCell(entities, coord.y, coord.x);
+		uint32_t masked = state&mask;
+		if ((masked != activeState && masked != EMPTY) || (newMasked != activeState && newMasked != EMPTY))
+		{
+			return;
+		}
+		setCell(entities, coord.y, coord.x, newState);
+	}
+
+	void rotate(
+		std::vector<Entity>& entities,
+		const Vector2Int& offset,
+		const uint32_t shapeWidth,
+		const uint32_t activeState,
+		const uint32_t mask)
+	{
+		for(int32_t x = 0; x < shapeWidth/2; ++x)
+		{
+			for (int32_t y = x; y < shapeWidth-x-1; ++y)
+			{
+				Vector2Int coord1(offset.x + x, offset.y + y);
+				Vector2Int coord2(offset.x + y, offset.y + shapeWidth - 1 - x);
+				Vector2Int coord3(offset.x + shapeWidth - 1 - x, offset.y + shapeWidth - 1 - y);
+				Vector2Int coord4(offset.x + shapeWidth - 1 - y, offset.y + x);
+
+				int64_t state1 = isValidCoordinate(coord1) ?  getCell(entities, coord1.y, coord1.x) : EMPTY;
+				int64_t state2 = isValidCoordinate(coord2) ?  getCell(entities, coord2.y, coord2.x) : EMPTY;
+				int64_t state3 = isValidCoordinate(coord3) ?  getCell(entities, coord3.y, coord3.x) : EMPTY;
+				int64_t state4 = isValidCoordinate(coord4) ?  getCell(entities, coord4.y, coord4.x) : EMPTY;
+
+				setCellAux(entities, coord1, state2, activeState, mask);
+				setCellAux(entities, coord2, state3, activeState, mask);
+				setCellAux(entities, coord3, state4, activeState, mask);
+				setCellAux(entities, coord4, state1, activeState, mask);
+			}
+		}
+	}
+
+	void moveUp(std::vector<Entity>& entities, uint32_t activeState, const BoxInt& box)
+	{
+		for (int32_t row = box.position.y; row < box.position.y + box.size.y; ++row)
+		{
+			for(int32_t column = box.position.x; column < box.position.x + box.size.x; ++column)
+			{
+				uint32_t currentState = getCell(entities, row, column);
+				uint32_t newState = row > 0 ? getCell(entities, row+1, column) : EMPTY;
+				uint32_t currentMasked = currentState&0xFF;
+				uint32_t newMasked = newState&0xFF;
+				if (currentMasked == activeState && newMasked != activeState)
+				{
+					newState = EMPTY;
+					newMasked = EMPTY;
+				}
+				if ((currentMasked == activeState && newMasked == EMPTY)
+					|| (currentMasked == EMPTY && newMasked == activeState)
+					|| (currentMasked == activeState && newMasked == activeState))
+				{
+					setCell(entities, row, column, newState);
+				}
+			}
+		}
+	}
+
+	void moveDown(std::vector<Entity>& entities, uint32_t activeState, const BoxInt& box)
+	{
+		for (int32_t row = box.position.y + box.size.y - 1; row >= box.position.y; --row)
+		{
+			for(int32_t column = box.position.x; column < box.position.x + box.size.x; ++column)
+			{
+				uint32_t currentState = getCell(entities, row, column);
+				uint32_t newState = row > 0 ? getCell(entities, row-1, column) : EMPTY;
+				uint32_t currentMasked = currentState&0xFF;
+				uint32_t newMasked = newState&0xFF;
+				if (currentMasked == activeState && newMasked != activeState)
+				{
+					newState = EMPTY;
+					newMasked = EMPTY;
+				}
+				if ((currentMasked == activeState && newMasked == EMPTY)
+					|| (currentMasked == EMPTY && newMasked == activeState)
+					|| (currentMasked == activeState && newMasked == activeState))
+				{
+					setCell(entities, row, column, newState);
+				}
+			}
+		}
+	}
+
+	void moveLeft(std::vector<Entity>& entities, uint32_t activeState, const BoxInt& box)
+	{
+		for(int32_t column = 0; column < matrixSize.x; ++column)
+		{
+			for (int32_t row = matrixSize.y-1; row >= 0; --row)
+			{
+				uint32_t currentState = getCell(entities, row, column);
+				uint32_t newState = column < matrixSize.x-1 ? getCell(entities, row, column+1) : EMPTY;
+				uint32_t currentMasked = currentState&0xFF;
+				uint32_t newMasked = newState&0xFF;
+				if (currentMasked == activeState && newMasked != activeState && newMasked != EMPTY)
+				{
+					newState = EMPTY;
+					newMasked = EMPTY;
+				}
+				if ((currentMasked == activeState && newMasked == EMPTY)
+					|| (currentMasked == EMPTY && newMasked == activeState)
+					|| (currentMasked == activeState && newMasked == activeState))
+				{
+					setCell(entities, row, column, newState);
+				}
+			}
+		}
+	}
+
+	void moveRight(std::vector<Entity>& entities, uint32_t activeState, const BoxInt& box)
+	{
+		for(int32_t column = matrixSize.x-1; column >= 0 ; --column)
+		{
+			for (int32_t row = matrixSize.y-1; row >= 0; --row)
+			{
+				uint32_t currentState = getCell(entities, row, column);
+				uint32_t newState = column > 0 ? getCell(entities, row, column-1) : EMPTY;
+				uint32_t currentMasked = currentState&0xFF;
+				uint32_t newMasked = newState&0xFF;
+				if (currentMasked == activeState && newMasked != activeState && newMasked != EMPTY)
+				{
+					newState = EMPTY;
+					newMasked = EMPTY;
+				}
+				if ((currentMasked == activeState && newMasked == EMPTY)
+					|| (currentMasked == EMPTY && newMasked == activeState)
+					|| (currentMasked == activeState && newMasked == activeState))
+				{
+					setCell(entities, row, column, newState);
+				}
+			}
+		}
 	}
 
 	uint32_t getCellIndex(std::vector<Entity>& entities, uint32_t row, uint32_t column)
