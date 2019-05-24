@@ -23,6 +23,7 @@ extern "C"
 	extern void Engine_FilledRectangle(float x, float y, float width, float height, uint32_t rgba);
 	extern void Engine_FilledText(const char* text, float x, float y, float fontSize, uint32_t rgba);
 	extern float Engine_MeasureTextWidth(const char* text, float fontSize);
+	extern float Engine_MeasureTextHeight(const char* text, float fontSize);
 	extern void Engine_Image(const char* name, float x, float y, float width, float height, uint32_t rgba);
 	extern void Engine_RoundedRectangle(
 		float x, float y,
@@ -158,6 +159,28 @@ struct Entity
 		float height = fontSize;
 		entity.coord3 = Vector2(width, height);
 		return entity;
+	}
+
+	static float getFontSize(const Entity& entity)
+	{
+		//assert entity.type == Type::Text
+		return entity.coord4.x;
+	}
+
+	static void setFontSize(Entity& entity, float fontSize)
+	{
+		//assert entity.type == Type::Text
+		const std::string& text = Entity::getText(entity);
+		entity.coord4.x = fontSize;
+		float width = Engine_MeasureTextWidth(text.c_str(), fontSize);
+		float height = fontSize;
+		entity.coord3 = Vector2(width, height);
+	}
+
+	static const std::string& getText(const Entity& entity)
+	{
+		//assert entity.type == Type::Text
+		return getTextForId(entity.id2);
 	}
 
 	static void setText(Entity& entity, const std::string& text)
@@ -351,7 +374,7 @@ struct Component
 	Vector2 cachedParentSize;
 	Vector2 cachedParentPosition;
 	float aspectRatio;
-	SizeMode sizeMode;
+	SizeMode _sizeMode;
 	PositionMode positionMode;
 
 	bool isDraggable;
@@ -371,7 +394,7 @@ struct Component
 	: _startIndex(entities.size())
 	// , endIndex(entities.size())
 	, aspectRatio(0.0f)
-	, sizeMode(SizeMode_Normal)
+	, _sizeMode(SizeMode_Normal)
 	, positionMode(PositionMode_Normal)
 	, isDraggable(false)
 	, isDragging(false)
@@ -397,6 +420,11 @@ struct Component
 	Vector2 upperRight()
 	{
 		return Vector2(screenPosition.x + screenSize.y, screenPosition.y);
+	}
+
+	virtual void setSizeMode(std::vector<Entity>& entities, SizeMode sizeMode)
+	{
+		_sizeMode = sizeMode;
 	}
 
 	Vector2 bottomRight()
@@ -485,6 +513,10 @@ struct Component
 	{
 		return entities[_startIndex].coord4;
 	}
+	const Vector2& getAnchorPoint(std::vector<Entity>& entities)
+	{
+		return anchorPoint;
+	}
 
 	void relayout(std::vector<Entity>& entities)
 	{
@@ -493,7 +525,7 @@ struct Component
 
 	void applySizeMode()
 	{
-		switch (sizeMode)
+		switch (_sizeMode)
 		{
 			case SizeMode_Normal:
 			case SizeMode_SizeToContents:
@@ -1139,14 +1171,45 @@ struct TextComponent : DrawComponent
 	{
 		Entity textEntity = Entity::text(text, Vector2(), fontSize, rgba);
 		addEntity(entities, textEntity);
-		setOffsetSize(entities, textEntity.coord3);
+		//addEntity(entities, Entity::rectangle(Vector2(), Vector2(), 0x00000099));
+	}
+
+	void setSizeMode(std::vector<Entity>& entities, SizeMode sizeMode) override
+	{
+		_sizeMode = sizeMode;
+		switch (_sizeMode)
+		{
+			case SizeMode_Normal:
+			case SizeMode_FixedAspectRatio:
+			{
+				break;
+			}
+			case SizeMode_SizeToContents:
+			{
+				setOffsetSize(entities, entities[getStartIndex(entities)+1].coord3);
+				relayout(entities);
+				break;
+			}
+		}
 	}
 
 	void setText(std::vector<Entity>& entities, const std::string& text)
 	{
 		Entity::setText(entities[getStartIndex(entities)+1], text);
-		setOffsetSize(entities, entities[getStartIndex(entities)+1].coord3);
-		relayout(entities);
+		switch (_sizeMode)
+		{
+			case SizeMode_Normal:
+			case SizeMode_FixedAspectRatio:
+			{
+				break;
+			}
+			case SizeMode_SizeToContents:
+			{
+				setOffsetSize(entities, entities[getStartIndex(entities)+1].coord3);
+				relayout(entities);
+				break;
+			}
+		}
 	}
 
 	void doLayoutEntities(
@@ -1155,7 +1218,40 @@ struct TextComponent : DrawComponent
 		const Vector2& oldScreenSize) override
 	{
 		Entity& textEntity = entities[getStartIndex(entities)+1];
-		textEntity.coord1 = screenPosition;
+
+		switch (_sizeMode)
+		{
+			case SizeMode_Normal:
+			{				
+				const std::string& text = Entity::getText(textEntity);
+				float fontSize = Entity::getFontSize(textEntity);
+				float width = Engine_MeasureTextWidth(text.c_str(), fontSize);
+				float ratio = screenSize.x/width;
+				float newFontSize = fontSize*ratio;
+				const Vector2& anchorPoint = getAnchorPoint(entities);
+				Entity::setFontSize(textEntity, newFontSize);
+				Entity::setPosition(
+					textEntity,
+					Vector2(screenPosition.x, screenPosition.y + (screenSize.y-newFontSize)*anchorPoint.y));
+				//Engine_MeasureTextHeight(text.c_str(), newFontSize);
+				//printf("jhelms setting text size: %4.2f, %4.2f, %4.2f, %4.2f, %4.2f\n", screenSize.x, width, ratio, newFontSize, newHeight);
+
+				// Entity& rectEntity = entities[getStartIndex(entities)+2];
+				// Entity::setPosition(rectEntity, screenPosition);
+				// Entity::setSize(rectEntity, screenSize);
+				break;
+			}
+			case SizeMode_FixedAspectRatio:
+			{
+				//assert false? TextComponent doesn't support FixedAspectRatio
+				break;
+			}
+			case SizeMode_SizeToContents:
+			{
+				Entity::setPosition(textEntity, screenPosition);
+				break;
+			}
+		}
 	}
 
 	void doLayout(
@@ -1168,6 +1264,46 @@ struct TextComponent : DrawComponent
 		doLayoutCommon(entities, parentPosition, parentSize);
 		doLayoutEntities(entities, oldScreenPosition, oldScreenSize);
 		doLayoutChildren(entities);
+	}
+};
+
+struct ComponentGrid : Component
+{
+	Vector2Int matrixSize;
+	std::function<struct Component*()> createBGCell;
+	std::function<struct Component*()> createFGCell;
+
+	ComponentGrid(
+		std::vector<Entity>& entities,
+		Vector2Int matrixSize,
+		std::function<struct Component*()> createBGCell,
+		std::function<struct Component*()> createFGCell)
+	: matrixSize(matrixSize)
+	, createBGCell(createBGCell)
+	, createFGCell(createFGCell)
+	, Component(entities)
+	{
+		float paddingPercent = 0.05;
+
+		float paddingRelativeX = paddingPercent/(matrixSize.x + 1);
+		float cellRelativeX = (1.0 - paddingPercent)/matrixSize.x;
+
+		float paddingRelativeY = paddingPercent/(matrixSize.y + 1);
+		float cellRelativeY = (1.0 - paddingPercent)/matrixSize.y;
+
+		for (int32_t i = 0; i < matrixSize.x; ++i)
+		{
+			for (int32_t j = 0; j < matrixSize.y; ++j)
+			{
+				auto cell = std::shared_ptr<struct Component>(createBGCell());
+				cell->setRelativeSize(entities, Vector2(cellRelativeX, cellRelativeY));
+				cell->setRelativePosition(entities, Vector2(
+					i*cellRelativeX + paddingRelativeX*(i+1),
+					j*cellRelativeY + paddingRelativeY*(j+1)));
+
+				addChild(entities, cell);
+			}
+		}
 	}
 };
 

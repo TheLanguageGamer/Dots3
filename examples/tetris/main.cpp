@@ -374,7 +374,7 @@ struct PlayTetris : Screen
 				Entity::setFillColor(entities[index], color);
 			}
 		));
-		entityGrid->sizeMode = Component::SizeMode_FixedAspectRatio;
+		entityGrid->setSizeMode(entities, Component::SizeMode_FixedAspectRatio);
 		entityGrid->setRelativeSize(entities, Vector2(1.0f, 1.0f));
 		entityGrid->setOffsetSize(entities, Vector2(-10.0f, -10.0f));
 		entityGrid->setRelativePosition(entities, Vector2(0.5f, 0.5f));
@@ -393,37 +393,37 @@ struct PlayTetris : Screen
 
 		auto levelLabel = std::shared_ptr<struct TextComponent>(
 			new TextComponent(entities, "LEVEL", 0xAAAAAAFF, 30.0f));
-		levelLabel->sizeMode = Component::SizeMode_SizeToContents;
+		levelLabel->setSizeMode(entities, Component::SizeMode_SizeToContents);
 		levelLabel->setAnchorPoint(entities, Vector2(1.0f, 0.0f));
 		textContainer->addChild(entities, levelLabel);
 
 		levelValue = std::shared_ptr<struct TextComponent>(
 			new TextComponent(entities, "1", 0xFFFFFFFF, 30.0f));
-		levelValue->sizeMode = Component::SizeMode_SizeToContents;
+		levelValue->setSizeMode(entities, Component::SizeMode_SizeToContents);
 		levelValue->setAnchorPoint(entities, Vector2(1.0f, 0.0f));
 		textContainer->addChild(entities, levelValue);
 
 		auto linesLabel = std::shared_ptr<struct TextComponent>(
 			new TextComponent(entities, "LINES", 0xAAAAAAFF, 30.0f));
-		linesLabel->sizeMode = Component::SizeMode_SizeToContents;
+		linesLabel->setSizeMode(entities, Component::SizeMode_SizeToContents);
 		linesLabel->setAnchorPoint(entities, Vector2(1.0f, 0.0f));
 		textContainer->addChild(entities, linesLabel);
 
 		linesValue = std::shared_ptr<struct TextComponent>(
 			new TextComponent(entities, "0", 0xFFFFFFFF, 30.0f));
-		linesValue->sizeMode = Component::SizeMode_SizeToContents;
+		linesValue->setSizeMode(entities, Component::SizeMode_SizeToContents);
 		linesValue->setAnchorPoint(entities, Vector2(1.0f, 0.0f));
 		textContainer->addChild(entities, linesValue);
 
 		auto scoreLabel = std::shared_ptr<struct TextComponent>(
 			new TextComponent(entities, "SCORE", 0xAAAAAAFF, 30.0f));
-		scoreLabel->sizeMode = Component::SizeMode_SizeToContents;
+		scoreLabel->setSizeMode(entities, Component::SizeMode_SizeToContents);
 		scoreLabel->setAnchorPoint(entities, Vector2(1.0f, 0.0f));
 		textContainer->addChild(entities, scoreLabel);
 
 		scoreValue = std::shared_ptr<struct TextComponent>(
 			new TextComponent(entities, "0", 0xFFFFFFFF, 30.0f));
-		scoreValue->sizeMode = Component::SizeMode_SizeToContents;
+		scoreValue->setSizeMode(entities, Component::SizeMode_SizeToContents);
 		scoreValue->setAnchorPoint(entities, Vector2(1.0f, 0.0f));
 		textContainer->addChild(entities, scoreValue);
 

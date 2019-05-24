@@ -36,11 +36,11 @@ struct TestPrimitives : Screen
 	}
 };
 
-struct TestTextLabel : Screen
+struct TestTextComponent : Screen
 {
-	TestTextLabel()
+	TestTextComponent()
 	{
-		printf("initializing TestTextLabel\n");
+		printf("initializing TestTextComponent\n");
 		entities.push_back(Entity::fillCircle(Vector2(50.0f, 50.0f), 30.0f, 0x99FF99FF));
 		printf("1\n");
 		rootComponent = std::shared_ptr<struct Component>(new struct Component(entities));
@@ -56,29 +56,29 @@ struct TestTextLabel : Screen
 		printf("3\n");
 
 		auto ulText = std::shared_ptr<struct Component>(new TextComponent(entities, "Hello World!", 0x0000FFFF, 20.0f));
-		ulText->sizeMode = Component::SizeMode_SizeToContents;
+		ulText->setSizeMode(entities, Component::SizeMode_SizeToContents);
 		bg1->addChild(entities, ulText);
 
 		auto urText = std::shared_ptr<struct Component>(new TextComponent(entities, "Hello World!", 0x0000FFFF, 20.0f));
-		urText->sizeMode = Component::SizeMode_SizeToContents;
+		urText->setSizeMode(entities, Component::SizeMode_SizeToContents);
 		urText->setRelativePosition(entities, Vector2(1.0f, 0.0f));
 		urText->setAnchorPoint(entities, Vector2(1.0f, 0.0f));
 		bg1->addChild(entities, urText);
 
 		auto blText = std::shared_ptr<struct Component>(new TextComponent(entities, "Hello World!", 0x0000FFFF, 20.0f));
-		blText->sizeMode = Component::SizeMode_SizeToContents;
+		blText->setSizeMode(entities, Component::SizeMode_SizeToContents);
 		blText->setRelativePosition(entities, Vector2(0.0f, 1.0f));
 		blText->setAnchorPoint(entities, Vector2(0.0f, 1.0f));
 		bg1->addChild(entities, blText);
 
 		auto brText = std::shared_ptr<struct Component>(new TextComponent(entities, "Hello World!", 0x0000FFFF, 20.0f));
-		brText->sizeMode = Component::SizeMode_SizeToContents;
+		brText->setSizeMode(entities, Component::SizeMode_SizeToContents);
 		brText->setRelativePosition(entities, Vector2(1.0f, 1.0f));
 		brText->setAnchorPoint(entities, Vector2(1.0f, 1.0f));
 		bg1->addChild(entities, brText);
 
 		auto cText = std::shared_ptr<struct Component>(new TextComponent(entities, "Hello World!", 0x0000FFFF, 20.0f));
-		cText->sizeMode = Component::SizeMode_SizeToContents;
+		cText->setSizeMode(entities, Component::SizeMode_SizeToContents);
 		cText->setRelativePosition(entities, Vector2(0.5f, 0.5f));
 		cText->setAnchorPoint(entities, Vector2(0.5f, 0.5f));
 		bg1->addChild(entities, cText);
@@ -102,11 +102,64 @@ struct TestTextLabel : Screen
 		);
 		rootComponent->addChild(entities, bg2);
 
-		auto fitToContainer = std::shared_ptr<struct Component>(
+		auto fitToContainer2 = std::shared_ptr<struct Component>(
 			new TextComponent(entities, "x", 0x0000FFFF, 10.0f));
-		fitToContainer->setOffsetPosition(entities, Vector2(0.5, 0.5f));
-		bg2->addChild(entities, fitToContainer);
+		fitToContainer2->setRelativePosition(entities, Vector2(0.5f, 0.5f));
+		fitToContainer2->setAnchorPoint(entities, Vector2(0.5f, 0.5f));
+		fitToContainer2->setRelativeSize(entities, Vector2(1.0f, 1.0f));
+		bg2->addChild(entities, fitToContainer2);
 
+		auto bg3 = std::shared_ptr<struct Component>(new RectangleComponent(entities, 0xFFFFFFFF));
+		printf("2\n");
+		bg3->setOffsetSize(entities, Vector2(10.0f, 10.0f));
+		bg3->setRelativePosition(entities, Vector2(1.0f, 0.5f));
+		bg3->setOffsetPosition(entities, Vector2(-10.0f, 0.0f));
+		bg3->setAnchorPoint(entities, Vector2(1.0f, 0.5f));
+		bg3->enableClicking(
+			nullptr,
+			nullptr,
+			[this, bg3](const Vector2&){
+				Vector2 size = bg3->getOffsetSize(entities);
+				Vector2 newSize = Vector2(size.x+5.0f, size.y+5.0f);
+				printf("click! %4.2fx%4.2f\n", newSize.x, newSize.y);
+				bg3->setOffsetSize(entities, newSize);
+				bg3->relayout(entities);
+			}
+		);
+		rootComponent->addChild(entities, bg3);
+
+		auto fitToContainer3 = std::shared_ptr<struct Component>(
+			new TextComponent(entities, "|", 0x0000FFFF, 10.0f));
+		fitToContainer3->setRelativePosition(entities, Vector2(0.5f, 0.5f));
+		fitToContainer3->setAnchorPoint(entities, Vector2(0.5f, 0.5f));
+		fitToContainer3->setRelativeSize(entities, Vector2(1.0f, 1.0f));
+		bg3->addChild(entities, fitToContainer3);
+
+		auto bg4 = std::shared_ptr<struct Component>(new RectangleComponent(entities, 0xFFFFFFFF));
+		printf("2\n");
+		bg4->setOffsetSize(entities, Vector2(10.0f, 10.0f));
+		bg4->setRelativePosition(entities, Vector2(1.0f, 1.0f));
+		bg4->setOffsetPosition(entities, Vector2(-10.0f, -10.0f));
+		bg4->setAnchorPoint(entities, Vector2(1.0f, 1.0f));
+		bg4->enableClicking(
+			nullptr,
+			nullptr,
+			[this, bg4](const Vector2&){
+				Vector2 size = bg4->getOffsetSize(entities);
+				Vector2 newSize = Vector2(size.x+5.0f, size.y+5.0f);
+				printf("click! %4.2fx%4.2f\n", newSize.x, newSize.y);
+				bg4->setOffsetSize(entities, newSize);
+				bg4->relayout(entities);
+			}
+		);
+		rootComponent->addChild(entities, bg4);
+
+		auto fitToContainer4 = std::shared_ptr<struct Component>(
+			new TextComponent(entities, "物HhIa", 0x0000FFFF, 10.0f));
+		fitToContainer4->setRelativePosition(entities, Vector2(0.5f, 0.5f));
+		fitToContainer4->setAnchorPoint(entities, Vector2(0.5f, 0.5f));
+		fitToContainer4->setRelativeSize(entities, Vector2(1.0f, 1.0f));
+		bg4->addChild(entities, fitToContainer4);
 
 	}
 };
@@ -162,7 +215,7 @@ struct TestEntityGrid : Screen
 				}
 			}
 		));
-		entityGrid->sizeMode = Component::SizeMode_FixedAspectRatio;
+		entityGrid->setSizeMode(entities, Component::SizeMode_FixedAspectRatio);
 		entityGrid->setRelativeSize(entities, Vector2(1.0f, 1.0f));
 		entityGrid->setOffsetSize(entities, Vector2(-10.0f, -10.0f));
 		entityGrid->setRelativePosition(entities, Vector2(0.5f, 0.5f));
@@ -495,7 +548,7 @@ int main()
 	Game game;
 	//game.entities.push_back(Entity::fillCircle(Vector2(50.0f, 50.0f), 30.0f, 0xFF88AAFF));
 	std::shared_ptr<Screen> testPrimitives = std::shared_ptr<Screen>(new TestPrimitives());
-	std::shared_ptr<Screen> testTextLabel = std::shared_ptr<Screen> (new TestTextLabel());
+	std::shared_ptr<Screen> testTextComponent = std::shared_ptr<Screen> (new TestTextComponent());
 	std::shared_ptr<Screen> testEntityGrid = std::shared_ptr<Screen> (new TestEntityGrid());
 	std::shared_ptr<Screen> testDraggable = std::shared_ptr<Screen> (new TestDraggable());
 	std::shared_ptr<Screen> testClickable = std::shared_ptr<Screen> (new TestClickable());
@@ -526,7 +579,7 @@ int main()
 				}
 				case 1:
 				{
-					game.setScreen(testTextLabel);
+					game.setScreen(testTextComponent);
 					break;
 				}
 				case 2:

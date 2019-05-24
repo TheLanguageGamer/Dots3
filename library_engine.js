@@ -115,6 +115,16 @@ var LibraryEngine = {
 			Engine.ctx.font = "" + fontSize + "px Monospace";
 			return Engine.ctx.measureText(text).width;
 		},
+		measureTextHeight: function(text, fontSize) {
+			text = UTF8ToString(text);
+			Engine.ctx.font = "" + fontSize + "px Monospace";
+			var metrics = Engine.ctx.measureText(text);
+			console.log("jhelms from js: ", metrics.emHeightAscent, metrics.emHeightDescent);
+			for(var propt in metrics){
+    			console.log(propt + ': ' + metrics[propt]);
+			}
+			return metrics.emHeightAscent + metrics.emHeightDescent;
+		},
 	},
 
 	Engine_Test1: function() {
@@ -154,6 +164,10 @@ var LibraryEngine = {
 
 	Engine_MeasureTextWidth: function(text, fontSize) {
 		return Engine.measureTextWidth(text, fontSize);
+	},
+
+	Engine_MeasureTextHeight: function(text, fontSize) {
+		return Engine.measureTextHeight(text, fontSize);
 	},
 
 	Engine_Image: function(name, x, y, width, height, rgba) {
