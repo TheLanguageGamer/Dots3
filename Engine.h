@@ -1164,9 +1164,9 @@ struct RectangleComponent : DrawComponent
 	}
 };
 
-struct FillCircleComponent : DrawComponent
+struct FilledCircleComponent : DrawComponent
 {
-	FillCircleComponent(std::vector<Entity>& entities, uint32_t rgba)
+	FilledCircleComponent(std::vector<Entity>& entities, uint32_t rgba)
 	: DrawComponent(entities)
 	{
 		addEntity(entities, Entity::fillCircle(Vector2(), 0.0f, rgba));
@@ -1188,13 +1188,13 @@ struct FillCircleComponent : DrawComponent
 		const Vector2& oldScreenPosition,
 		const Vector2& oldScreenSize) override
 	{
-		//printf("FillCircleComponent cached %4.2f x %4.2f, %4.2f x %4.2f\n",
+		//printf("FilledCircleComponent cached %4.2f x %4.2f, %4.2f x %4.2f\n",
 		//	cachedParentPosition.x, cachedParentPosition.y, cachedParentSize.x, cachedParentSize.y);
 		Entity& circle = entities[getStartIndex(entities)+1];
 		//circle.coord1 = Vector2(screenPosition.x - anchorPoint.x*radius*2.0f, screenPosition.y - anchorPoint.y*radius*2.0f);
 		circle.coord1 = screenPosition;
 		circle.coord3 = Vector2(screenSize.x/2.0f, screenSize.y/2.0f);
-		printf("FillCircleComponent doLayoutEntities %4.2f x %4.2f\n", screenPosition.x, screenPosition.y);
+		printf("FilledCircleComponent doLayoutEntities %4.2f x %4.2f\n", screenPosition.x, screenPosition.y);
 	}
 
 	void doLayout(
@@ -1529,22 +1529,16 @@ struct ComponentGrid : Component
 		}
 	}
 
-	void moveSwap(
+	void swap(
 		std::vector<Entity>& entities,
 		const int32_t row1,
 		const uint32_t column1,
 		const uint32_t row2,
 		const uint32_t column2)
 	{
-		// printf("moveSwap 1\n");
-		// validateConsistency();
-		isValidCoordinate(row1, column1);
-		isValidCoordinate(row2, column2);
 		auto cell1 = grid[row1][column1];
 		auto cell2 = grid[row2][column2];
-		// printf("moveSwap 2\n");
-		// validateConsistency();
-		//assert cell1, cell2 not null
+
 		cell1->row = row2;
 		cell1->column = column2;
 		cell2->row = row1;
@@ -1552,8 +1546,26 @@ struct ComponentGrid : Component
 		grid[row1][column1] = cell2;
 		grid[row2][column2] = cell1;
 
-		// printf("moveSwap 3\n");
-		// validateConsistency();
+		cell1->setRelativePosition(entities, getPosition(entities, row2, column2));
+		cell2->setRelativePosition(entities, getPosition(entities, row1, column1));
+	}
+
+	void moveSwap(
+		std::vector<Entity>& entities,
+		const int32_t row1,
+		const uint32_t column1,
+		const uint32_t row2,
+		const uint32_t column2)
+	{
+		auto cell1 = grid[row1][column1];
+		auto cell2 = grid[row2][column2];
+
+		cell1->row = row2;
+		cell1->column = column2;
+		cell2->row = row1;
+		cell2->column = column1;
+		grid[row1][column1] = cell2;
+		grid[row2][column2] = cell1;
 
 		auto animation1 = std::shared_ptr<SpringAnimation>(new SpringAnimation(
 			cell1,

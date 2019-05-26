@@ -1,4 +1,8 @@
 #include "Engine.h"
+#include <random>
+
+std::random_device rd;
+std::mt19937 rng(rd()); 
 
 struct GameHue : Screen
 {
@@ -23,7 +27,7 @@ struct GameHue : Screen
 		background->setOffsetSize(entities, Vector2(-100.0f, -100.0f));
 		background->setRelativePosition(entities, Vector2(0.5f, 0.5f));
 		background->setAnchorPoint(entities, Vector2(0.5f, 0.5f));
-
+		
 		board = std::shared_ptr<ComponentGrid>(
 			new ComponentGrid(
 				entities,
@@ -42,23 +46,39 @@ struct GameHue : Screen
 				nullptr,
 				[this]()
 				{
-					auto cell = new RectangleComponent(
+					auto rectangle = new RectangleComponent(
 						entities,
 						0xFF00FFFF
 					);
-					return cell;
+
+					auto blackDot = std::shared_ptr<FilledCircleComponent>(
+						new FilledCircleComponent(entities, 0x000000FF));
+					blackDot->setRelativeSize(entities, Vector2(0.1, 0.1));
+					blackDot->setRelativePosition(entities, Vector2(0.5, 0.5));
+					blackDot->setAnchorPoint(entities, Vector2(0.5, 0.5));
+					rectangle->addChild(entities, blackDot);
+					
+					return rectangle;
 				},
 				[this](struct Component* cell, uint32_t row, uint32_t column, uint32_t state)
 				{
 					auto rectangle = dynamic_cast<RectangleComponent*>(cell);
 					//assert rectangle not null
-					printf("jhelms set state for rectangle: %p\n", rectangle);
 					rectangle->setFillColor(entities, state); 
+
+					uint32_t fillColor = 0x0;
+					if (row%3 == 0 && column%3 == 0)
+					{
+						fillColor = 0x000000FF;
+					}
+					auto circle = std::dynamic_pointer_cast<FilledCircleComponent>(rectangle->children[0]);
+					circle->setColor(entities, fillColor);
 				}
 			)
 		);
 		board->setRelativeSize(entities, Vector2(1.0f, 1.0f));
 
+		//spawn
 		for (int32_t row = 0; row < board->matrixSize.y; ++row)
 		{
 			for (int32_t column = 0; column < board->matrixSize.x; ++column)
@@ -68,20 +88,46 @@ struct GameHue : Screen
 				uint32_t blue = (0xFF * column) / board->matrixSize.x;
 				uint32_t rgba = (red << 24) + (green << 16) + (blue << 8) + 0xFF; 
 				auto cell = board->spawn(entities, row, column, rgba);
-				cell->enableDragging(
-					nullptr,
-					[this, cell](){
-						board->swapToTop(entities, cell);
-					},
-					[this, cell](){
-						cell->convertOffsetToRelativePosition(entities);
-						swapWithClosestCell(cell);
-					}
-				);
+				if (row%3 != 0 || column%3 != 0)
+				{
+					cell->enableDragging(
+						nullptr,
+						[this, cell](){
+							board->swapToTop(entities, cell);
+						},
+						[this, cell](){
+							cell->convertOffsetToRelativePosition(entities);
+							swapWithClosestCell(cell);
+						}
+					);
+				}
 			}
 		}
-		//board->move(entities, 0, 0, 0, 3);
+		
+		//randomize
+		std::uniform_int_distribution<uint32_t> columnDist(0, board->matrixSize.x-1);
+		std::uniform_int_distribution<uint32_t> rowDist(0, board->matrixSize.y-1);
+		for (int32_t row = 0; row < board->matrixSize.y; ++row)
+		{
+			for (int32_t column = 0; column < board->matrixSize.x; ++column)
+			{
+				if (row%3 == 0 && column%3 == 0)
+				{
+					continue;
+				}
 
+				uint32_t newRow = 0;
+				uint32_t newColumn = 0;
+				while (newRow%3 == 0 && newColumn%3 == 0)
+				{
+					newRow = rowDist(rng);
+					newColumn = columnDist(rng);
+				}
+				board->swap(entities, row, column, newRow, newColumn);
+			}
+		}
+
+		//board->move(entities, 0, 0, 0, 3);
 		background->addChild(entities, board);
 		rootComponent->addChild(entities, background);
 	}
@@ -104,10 +150,8 @@ struct GameHue : Screen
 				}
 				auto other = board->grid[row][column];
 				float distance = Vector2::distance(cell->screenPosition, other->screenPosition);
-				if (distance < minDistance)
+				if (distance < minDistance && other->isDraggable)
 				{
-					printf("closest: %p %ux%u, %4.2f at %4.2f to %4.2f\n",
-						other.get(), row, column, distance, cell->screenPosition.x, other->screenPosition.x);
 					minDistance = distance;
 					best = other;
 					closestRow = row;
@@ -118,10 +162,7 @@ struct GameHue : Screen
 
 		if (minDistance < cell->screenSize.x)
 		{
-			printf("jhelms %ux%u will swap with %ux%u, %4.2f\n", inRow, inColumn, closestRow, closestColumn, minDistance);
-			printf("consistent? %ux%u - %ux%u\n", closestRow, closestColumn, best->row, best->column);
 			board->moveSwap(entities, inRow, inColumn, closestRow, closestColumn);
-			printf("position now: %4.2fx%4.2f\n", cell->screenPosition.x, cell->screenPosition.y);
 		}
 	}
 };

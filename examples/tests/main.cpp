@@ -262,7 +262,7 @@ struct TestDraggable : Screen
 		ring->setRelativePosition(entities, Vector2(0.5f, 0.5f));
 		ring->setAnchorPoint(entities, Vector2(0.5f, 0.5f));
 
-		auto dragCircle = std::shared_ptr<FillCircleComponent>(new FillCircleComponent(entities, 0xAACCFFFF));
+		auto dragCircle = std::shared_ptr<FilledCircleComponent>(new FilledCircleComponent(entities, 0xAACCFFFF));
 		dragCircle->setRadius(entities, 50.0f, 0.0f);
 		dragCircle->setRelativePosition(entities, Vector2(0.5f, 0.5f));
 		dragCircle->setAnchorPoint(entities, Vector2(0.5f, 0.5f));
@@ -333,7 +333,7 @@ struct TestClickable : Screen
 		rootComponent = std::shared_ptr<struct Component>(new struct Component(entities));
 		rootComponent->setRelativeSize(entities, Vector2(1.0f, 1.0f));
 
-		auto button1 = std::shared_ptr<FillCircleComponent>(new FillCircleComponent(entities, 0xAACCFFFF));
+		auto button1 = std::shared_ptr<FilledCircleComponent>(new FilledCircleComponent(entities, 0xAACCFFFF));
 		button1->setRadius(entities, 50.0f, 0.0f);
 		button1->setRelativePosition(entities, Vector2(1.0f, 0.0f));
 		button1->setOffsetPosition(entities, Vector2(-100.0f, 100.0f));
@@ -429,7 +429,7 @@ struct TestAnimation : Screen
 		rootComponent = std::shared_ptr<struct Component>(new struct Component(entities));
 		rootComponent->setRelativeSize(entities, Vector2(1.0f, 1.0f));
 
-		auto circle1 = std::shared_ptr<FillCircleComponent>(new FillCircleComponent(entities, 0xAACCFFFF));
+		auto circle1 = std::shared_ptr<FilledCircleComponent>(new FilledCircleComponent(entities, 0xAACCFFFF));
 		circle1->setRadius(entities, 50.0f, 0.0f);
 		circle1->setRelativePosition(entities, Vector2(0.0f, 0.0f));
 		circle1->setOffsetPosition(entities, Vector2(200.0f, 200.0f));
@@ -445,7 +445,7 @@ struct TestAnimation : Screen
 		));
 		circle1->movement = animation1;
 
-		auto circle2 = std::shared_ptr<FillCircleComponent>(new FillCircleComponent(entities, 0xFFAAFFFF));
+		auto circle2 = std::shared_ptr<FilledCircleComponent>(new FilledCircleComponent(entities, 0xFFAAFFFF));
 		circle2->setRadius(entities, 50.0f, 0.0f);
 		circle2->setRelativePosition(entities, Vector2(1.0f, 0.0f));
 		circle2->setOffsetPosition(entities, Vector2(-400.0f, 300.0f));
@@ -461,7 +461,7 @@ struct TestAnimation : Screen
 		));
 		circle2->movement = animation2;
 
-		auto circle3 = std::shared_ptr<FillCircleComponent>(new FillCircleComponent(entities, 0xAAFFAAFF));
+		auto circle3 = std::shared_ptr<FilledCircleComponent>(new FilledCircleComponent(entities, 0xAAFFAAFF));
 		circle3->setRadius(entities, 30.0f, 0.0f);
 		circle3->setRelativePosition(entities, Vector2(0.5f, 0.0f));
 		circle3->setOffsetPosition(entities, Vector2(0.0f, 100.0f));
@@ -488,7 +488,7 @@ struct TestAnimation : Screen
 		animation3->movements.push_back(animation3b);
 		circle3->movement = animation3;
 
-		auto circle4 = std::shared_ptr<FillCircleComponent>(new FillCircleComponent(entities, 0xDDDDDDFF));
+		auto circle4 = std::shared_ptr<FilledCircleComponent>(new FilledCircleComponent(entities, 0xDDDDDDFF));
 		circle4->setRadius(entities, 80.0f, 0.0f);
 		circle4->setRelativePosition(entities, Vector2(0.0f, 0.0f));
 		circle4->setAnchorPoint(entities, Vector2(0.5f, 0.5f));
