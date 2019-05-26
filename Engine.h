@@ -54,6 +54,11 @@ struct Vector2
 	Vector2(float x, float y)
 	: x(x)
 	, y(y) {}
+
+	static float distance(const Vector2& v1, const Vector2& v2)
+	{
+		return sqrtf((v2.x-v1.x)*(v2.x-v1.x) + (v2.y-v1.y)*(v2.y-v1.y));
+	}
 };
 
 Vector2 operator* (float c, const Vector2& v)
@@ -239,7 +244,7 @@ struct Entity
 		entity.type = Type::Rectangle;
 		entity.coord1 = position;
 		entity.coord3 = size;
-		entity.id1 = rgba;
+		entity.id2 = rgba;
 		return entity;
 	}
 
@@ -265,6 +270,7 @@ struct Entity
 	{
 		switch (entity.type)
 		{
+			case Type::Rectangle:
 			case Type::RoundedRectangle:
 			{
 				entity.id2 = fillRgba;
@@ -380,6 +386,8 @@ struct Component
 	bool isDraggable;
 	bool isDragging;
 	std::function<void(Vector2& offsetPosition)> clampOffset;
+	std::function<void()> onDraggingStarted;
+	std::function<void()> onDraggingStopped;
 
 	bool isClickable;
 	bool isSelected;
@@ -442,9 +450,27 @@ struct Component
 		return entities[_startIndex].id2;
 	}
 
+	void setStartIndex(std::vector<Entity>& entities, uint32_t startIndex)
+	{
+		_startIndex = startIndex;
+		entities[_startIndex].id1 = startIndex;
+	}
+
 	void setEndIndex(std::vector<Entity>& entities, uint32_t endIndex)
 	{
 		entities[_startIndex].id2 = endIndex;
+	}
+
+	void updateStartIndex(std::vector<Entity>& entities, uint32_t startIndex)
+	{
+		int32_t delta = startIndex - _startIndex;
+		setStartIndex(entities, startIndex);
+		setEndIndex(entities, getEndIndex(entities) + delta);
+		for (auto child : children)
+		{
+			uint32_t childStartIndex = child->_startIndex + delta;
+			child->updateStartIndex(entities, childStartIndex);
+		}
 	}
 
 	bool isEnabled(std::vector<Entity>& entities)
@@ -571,10 +597,23 @@ struct Component
 
 		float newX = parentPosition.x + (parentSize.x)*relativePosition.x - anchorPoint.x*screenSize.x + offsetPosition.x;
 		float newY = parentPosition.y + (parentSize.y)*relativePosition.y - anchorPoint.y*screenSize.y + offsetPosition.y;
-		printf("jhelms doLayoutCommon %4.2f, %4.2f, %4.2f, %4.2f, %4.2f\n", newX, parentPosition.x, relativePosition.x, screenSize.x, offsetSize.x);
+		//printf("jhelms doLayoutCommon %4.2f, %4.2f, %4.2f, %4.2f, %4.2f\n", newX, parentPosition.x, relativePosition.x, screenSize.x, offsetSize.x);
 		screenPosition = Vector2(newX, newY);
 
 		applySizeMode();
+	}
+
+	void convertOffsetToRelativePosition(std::vector<Entity>& entities)
+	{
+		const Vector2& relativePosition = getRelativePosition(entities);
+		const Vector2& offsetPosition = getOffsetPosition(entities);
+
+		float relativeDeltaX = offsetPosition.x/cachedParentSize.x;
+		float relativeDeltaY = offsetPosition.y/cachedParentSize.y;
+
+		Vector2 newRelativePosition(relativePosition.x + relativeDeltaX, relativePosition.y + relativeDeltaY);
+		setRelativePosition(entities, newRelativePosition);
+		setOffsetPosition(entities, Vector2());
 	}
 
 	void doLayoutChildren(std::vector<Entity>& entities)
@@ -635,26 +674,33 @@ struct Component
 		}
 	}
 
-	void enableDragging(std::function<void(Vector2& offsetPosition)> inClampOffset)
+	void enableDragging(
+		std::function<void(Vector2& offsetPosition)> inClampOffset,
+		std::function<void()> inOnDraggingStarted,
+		std::function<void()> inOnDraggingStopped)
 	{
 		clampOffset = inClampOffset;
+		onDraggingStarted = inOnDraggingStarted;
+		onDraggingStopped = inOnDraggingStopped;
 		isDraggable = true;
 	}
 
 	void onDrag(std::vector<Entity>& entities, const Vector2& delta)
 	{
+		printf("dragging %p\n", this);
 		const Vector2& offsetPosition = getOffsetPosition(entities);
 		Vector2 newOffsetPosition = Vector2(offsetPosition.x + delta.x, offsetPosition.y + delta.y);
 		if (clampOffset)
 		{
 			clampOffset(newOffsetPosition);
 		}
-		const Vector2 impliedDelta(newOffsetPosition.x - offsetPosition.x, newOffsetPosition.y - offsetPosition.y);
+		//const Vector2 impliedDelta(newOffsetPosition.x - offsetPosition.x, newOffsetPosition.y - offsetPosition.y);
 		setOffsetPosition(entities, newOffsetPosition);
-		const Vector2 oldScreenPosition = screenPosition;
-		screenPosition = Vector2(screenPosition.x + impliedDelta.x, screenPosition.y + impliedDelta.y);
-		doLayoutEntities(entities, oldScreenPosition, screenSize);
-		doLayoutChildren(entities);
+		//const Vector2 oldScreenPosition = screenPosition;
+		// screenPosition = Vector2(screenPosition.x + impliedDelta.x, screenPosition.y + impliedDelta.y);
+		// doLayoutEntities(entities, oldScreenPosition, screenSize);
+		// doLayoutChildren(entities);
+		relayout(entities);
 	}
 
 	void enableClicking(
@@ -717,7 +763,11 @@ struct Component
 
 		if (isDraggable && doesPointIntersectRect(position, screenPosition, screenSize))
 		{
-			printf("made draggable\n");
+			printf("made draggable %p\n", this);
+			if (onDraggingStarted)
+			{
+				onDraggingStarted();
+			}
 			isDragging = true;
 			return true;
 		}
@@ -745,6 +795,10 @@ struct Component
 		}
 		if (isDraggable && isDragging)
 		{
+			if (onDraggingStopped)
+			{
+				onDraggingStopped();
+			}
 			isDragging = false;
 			return true;
 		}
@@ -760,6 +814,33 @@ struct Component
 		return false;
 	}
 };
+
+static void swapComponentEntities(
+	std::vector<Entity>& entities,
+	struct Component* component1,
+	struct Component* component2)
+{
+	uint32_t start1 = component1->getStartIndex(entities);
+	uint32_t end1 = component1->getEndIndex(entities);
+	uint32_t start2 = component2->getStartIndex(entities);
+	uint32_t end2 = component2->getEndIndex(entities);
+	printf("swapComponentEntities %p %p, %u->%u : %u->%u\n", component1, component2, start1, end1, start2, end2);
+	uint32_t length = end1 - start1;
+	//assert end1-start1 == end2-start2
+	for (int32_t indexDelta = 0; indexDelta <= length; ++indexDelta)
+	{
+		// Entity temp = entities[start1 + indexDelta];
+		// entities[start1 + indexDelta] = entities[start2 + indexDelta];
+		// entities[start2 + indexDelta] = temp;
+		std::swap(entities[start1 + indexDelta], entities[start2 + indexDelta]);
+	}
+	// component1->setStartIndex(entities, start2);
+	// component1->setEndIndex(entities, end2);
+	// component2->setStartIndex(entities, start1);
+	// component2->setEndIndex(entities, end1);
+	component1->updateStartIndex(entities, start2);
+	component2->updateStartIndex(entities, start1);
+}
 
 struct ComposeMovement : Movement
 {
@@ -908,11 +989,12 @@ struct FixedCapacityPool
 	FixedCapacityPool(
 		std::vector<Entity>& entities,
 		uint32_t capacity,
-		std::shared_ptr<struct Component> parent,
+		struct Component* parent,
 		std::function<struct Component*()> initialize)
 	{
 		for (int32_t i = 0; i < capacity; ++i)
 		{
+			printf("jhelms spawning %d\n", i);
 			auto component = std::shared_ptr<struct Component>(initialize());
 			component->disable(entities);
 			pool.push_back(component);
@@ -1051,6 +1133,12 @@ struct RectangleComponent : DrawComponent
 	: DrawComponent(entities)
 	{
 		addEntity(entities, Entity::rectangle(Vector2(), Vector2(), rgba));
+	}
+
+	void setFillColor(std::vector<Entity>& entities, uint32_t rgba)
+	{
+		Entity& rectangle = entities[getStartIndex(entities)+1];
+		Entity::setFillColor(rectangle, rgba);
 	}
 
 	void doLayoutEntities(
@@ -1267,43 +1355,264 @@ struct TextComponent : DrawComponent
 	}
 };
 
+struct ComponentCell : Component
+{
+	uint32_t row;
+	uint32_t column;
+
+	std::shared_ptr<struct Component> custom;
+
+	ComponentCell(std::vector<Entity>& entities)
+	: row(0)
+	, column(0)
+	, Component(entities) {}
+};
+
 struct ComponentGrid : Component
 {
 	Vector2Int matrixSize;
 	std::function<struct Component*()> createBGCell;
 	std::function<struct Component*()> createFGCell;
+	std::function<void(struct Component*, uint32_t, uint32_t, uint32_t)> setCellState;
+	std::shared_ptr<FixedCapacityPool> pool;
+	std::vector<std::vector<std::shared_ptr<ComponentCell>>> grid;
+
+	float paddingPercent;
+	Vector2 cellRelativeSize;
+	Vector2 paddingRelativeSize;
 
 	ComponentGrid(
 		std::vector<Entity>& entities,
 		Vector2Int matrixSize,
+		float paddingPercent,
 		std::function<struct Component*()> createBGCell,
-		std::function<struct Component*()> createFGCell)
+		std::function<struct Component*()> createFGCell,
+		std::function<void(struct Component*, uint32_t, uint32_t, uint32_t)> setCellState)
 	: matrixSize(matrixSize)
+	, paddingPercent(paddingPercent)
+	, paddingRelativeSize(paddingPercent/(matrixSize.x + 1), paddingPercent/(matrixSize.y + 1))
 	, createBGCell(createBGCell)
 	, createFGCell(createFGCell)
+	, setCellState(setCellState)
 	, Component(entities)
 	{
-		float paddingPercent = 0.05;
+		// float paddingRelativeX = paddingPercent/(matrixSize.x + 1);
+		// float cellRelativeX = (1.0 - paddingPercent)/matrixSize.x;
 
-		float paddingRelativeX = paddingPercent/(matrixSize.x + 1);
-		float cellRelativeX = (1.0 - paddingPercent)/matrixSize.x;
+		// float paddingRelativeY = paddingPercent/(matrixSize.y + 1);
+		// float cellRelativeY = (1.0 - paddingPercent)/matrixSize.y;
 
-		float paddingRelativeY = paddingPercent/(matrixSize.y + 1);
-		float cellRelativeY = (1.0 - paddingPercent)/matrixSize.y;
+		cellRelativeSize = Vector2((1.0 - paddingPercent)/matrixSize.x, (1.0 - paddingPercent)/matrixSize.y);
 
-		for (int32_t i = 0; i < matrixSize.x; ++i)
+		for (int32_t row = 0; row < matrixSize.y; ++row)
 		{
-			for (int32_t j = 0; j < matrixSize.y; ++j)
+			grid.push_back(std::vector<std::shared_ptr<ComponentCell>>());
+			for (int32_t column = 0; column < matrixSize.x; ++column)
 			{
-				auto cell = std::shared_ptr<struct Component>(createBGCell());
-				cell->setRelativeSize(entities, Vector2(cellRelativeX, cellRelativeY));
-				cell->setRelativePosition(entities, Vector2(
-					i*cellRelativeX + paddingRelativeX*(i+1),
-					j*cellRelativeY + paddingRelativeY*(j+1)));
-
-				addChild(entities, cell);
+				grid[row].push_back(nullptr);
+				if (createBGCell)
+				{
+					auto cell = std::shared_ptr<struct Component>(createBGCell());
+					cell->setRelativeSize(entities, Vector2(cellRelativeSize.x, cellRelativeSize.y));
+					cell->setRelativePosition(entities, getPosition(entities, row, column));
+					cell->setOffsetPosition(entities, Vector2(1.0, 1.0));
+					cell->setOffsetSize(entities, Vector2(-2.0, -2.0));
+					addChild(entities, cell);
+				}
 			}
 		}
+
+		pool.reset(new FixedCapacityPool(
+			entities,
+			matrixSize.x*matrixSize.y*2,
+			//0,
+			this,
+			[&entities, createFGCell](){
+
+				ComponentCell* cell = new ComponentCell(entities);
+				
+				std::shared_ptr<struct Component> child = nullptr;
+				child.reset(createFGCell());
+				child->setRelativeSize(entities, Vector2(1.0, 1.0));
+
+				cell->custom = child;
+				cell->addChild(entities, child);
+				return cell;
+			}
+		));
+	}
+
+	void isValidCoordinate(uint32_t row, uint32_t column)
+	{
+		if (row >= matrixSize.y || column >= matrixSize.x)
+		{
+			printf("invalid coordinate %ux%u\n", row, column);
+		}
+	}
+
+	Vector2 getPosition(
+		std::vector<Entity>& entities,
+		int32_t row,
+		int32_t column)
+	{
+		return Vector2(
+			column*cellRelativeSize.x + paddingRelativeSize.x*(column+1),
+			row*cellRelativeSize.y + paddingRelativeSize.y*(row+1));
+	}
+
+	void layoutCell(
+		std::vector<Entity>& entities,
+		std::shared_ptr<struct Component> cell,
+		uint32_t row,
+		uint32_t column)
+	{
+		cell->setRelativeSize(entities, Vector2(cellRelativeSize.x, cellRelativeSize.y));
+		cell->setRelativePosition(entities, getPosition(entities, row, column));
+	}
+
+	std::shared_ptr<ComponentCell> spawn(
+		std::vector<Entity>& entities,
+		uint32_t row,
+		uint32_t column,
+		uint32_t state)
+	{
+		isValidCoordinate(row, column);
+		auto cell = std::dynamic_pointer_cast<ComponentCell>(pool->get(entities));
+		//assert cell is not nullptr
+		printf("jhelms spawn %p\n", cell.get());
+		cell->row = row;
+		cell->column = column;
+		layoutCell(entities, cell, row, column);
+		grid[row][column] = cell;
+		setCellState(cell->custom.get(), row, column, state);
+		return cell;
+	}
+
+	void move(
+		std::vector<Entity>& entities,
+		uint32_t row1,
+		uint32_t column1,
+		uint32_t row2,
+		uint32_t column2)
+	{
+		isValidCoordinate(row1, column1);
+		isValidCoordinate(row2, column2);
+		auto cell = grid[row1][column1];
+		//assert cell != nullptr
+		cell->row = row2;
+		cell->column = column2;
+		grid[row2][column2] = cell;
+		grid[row1][column1] = nullptr;
+		auto animation = std::shared_ptr<SpringAnimation>(new SpringAnimation(
+			cell,
+			SpringAnimation::RelativePosition,
+			getPosition(entities, row2, column2),
+			1000.0f,
+			100.0f,
+			0.001f
+		));
+		cell->movement = animation;
+	}
+
+	void validateConsistency()
+	{
+		for (int32_t row = 0; row < matrixSize.y; ++row)
+		{
+			for (int32_t column = 0; column < matrixSize.x; ++column)
+			{
+				auto cell = grid[row][column];
+				if (cell->row != row || cell->column != column)
+				{
+					printf("Error! inconsistent cell: %ux%u is %ux%u\n", row, column, cell->row, cell->column);
+				}
+			}
+		}
+	}
+
+	void moveSwap(
+		std::vector<Entity>& entities,
+		const int32_t row1,
+		const uint32_t column1,
+		const uint32_t row2,
+		const uint32_t column2)
+	{
+		// printf("moveSwap 1\n");
+		// validateConsistency();
+		isValidCoordinate(row1, column1);
+		isValidCoordinate(row2, column2);
+		auto cell1 = grid[row1][column1];
+		auto cell2 = grid[row2][column2];
+		// printf("moveSwap 2\n");
+		// validateConsistency();
+		//assert cell1, cell2 not null
+		cell1->row = row2;
+		cell1->column = column2;
+		cell2->row = row1;
+		cell2->column = column1;
+		grid[row1][column1] = cell2;
+		grid[row2][column2] = cell1;
+
+		// printf("moveSwap 3\n");
+		// validateConsistency();
+
+		auto animation1 = std::shared_ptr<SpringAnimation>(new SpringAnimation(
+			cell1,
+			SpringAnimation::RelativePosition,
+			getPosition(entities, row2, column2),
+			1000.0f,
+			100.0f,
+			0.001f
+		));
+		cell1->movement = animation1;
+		
+		auto animation2 = std::shared_ptr<SpringAnimation>(new SpringAnimation(
+			cell2,
+			SpringAnimation::RelativePosition,
+			getPosition(entities, row1, column1),
+			1000.0f,
+			100.0f,
+			0.001f
+		));
+		cell2->movement = animation2;
+	}
+
+	void swapToTop(
+		std::vector<Entity>& entities,
+		std::shared_ptr<ComponentCell> cell)
+	{
+		// printf("swapToTop 1\n");
+		// validateConsistency();
+		
+		uint32_t inRow = cell->row;
+		uint32_t inColumn = cell->column;
+		//assert cell
+		auto highestCell = cell;
+		uint32_t highestStartIndex = cell->getStartIndex(entities);
+
+		for (int32_t row = 0; row < matrixSize.y; ++row)
+		{
+			for (int32_t column = 0; column < matrixSize.x; ++column)
+			{
+				auto otherCell = grid[row][column];
+				if (!otherCell)
+				{
+					continue;
+				}
+				uint32_t startIndex = otherCell->getStartIndex(entities);
+				if (startIndex > highestStartIndex)
+				{
+					highestStartIndex = startIndex;
+					highestCell = otherCell;
+				}
+			}
+		}
+
+		// printf("swapToTop 2\n");
+		// validateConsistency();
+		swapComponentEntities(entities, cell.get(), highestCell.get());
+
+		// printf("swapToTop 3\n");
+		// validateConsistency();
 	}
 };
 
@@ -1877,7 +2186,7 @@ struct Game
 						entity.coord1.y,
 						entity.coord3.x,
 						entity.coord3.y,
-						entity.id1);
+						entity.id2);
 					break;
 				}
 				case Type::RoundedRectangle:
