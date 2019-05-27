@@ -21,6 +21,7 @@ extern "C"
 	extern void Engine_FilledEllipse(float x, float y, float width, float height, uint32_t rgba);
 	extern void Engine_StrokeEllipse(float x, float y, float width, float height, float thickness, uint32_t rgba);
 	extern void Engine_FilledRectangle(float x, float y, float width, float height, uint32_t rgba);
+	extern void Engine_StrokeRectangle(float x, float y, float width, float height, float thickness, uint32_t rgba);
 	extern void Engine_FilledText(const char* text, float x, float y, float fontSize, uint32_t rgba);
 	extern float Engine_MeasureTextWidth(const char* text, float fontSize);
 	extern float Engine_MeasureTextHeight(const char* text, float fontSize);
@@ -30,6 +31,8 @@ extern "C"
 		float width, float height,
 		float radius, float thickness,
 		uint32_t strokeRgba, uint32_t fillRgba);
+	extern void Engine_RegisterSound(const char* path);
+	extern void Engine_PlaySound(const char* path);
 }
 
 enum Type
@@ -39,6 +42,7 @@ enum Type
 	FillCircle,
 	StrokeCircle,
 	Rectangle,
+	StrokeRectangle,
 	RoundedRectangle,
 	Text,
 	Image,
@@ -248,6 +252,38 @@ struct Entity
 		return entity;
 	}
 
+	static Entity strokeRectangle(
+		const Vector2& position,
+		const Vector2& size,
+		float thickness,
+		uint32_t rgba)
+	{
+		Entity entity;
+		entity.type = Type::StrokeRectangle;
+		entity.coord1 = position;
+		entity.coord3 = size;
+		entity.coord4 = Vector2(thickness, 0.0f);
+		entity.id2 = rgba;
+		return entity;
+	}
+
+	static void setStrokeColor(Entity& entity, const uint32_t fillRgba)
+	{
+		switch (entity.type)
+		{
+			case Type::StrokeRectangle:
+			{
+				entity.id2 = fillRgba;
+				break;
+			}
+			default:
+			{
+				//assert false
+				break;
+			}
+		}
+	}
+
 	static Entity roundedRectangle(
 		const Vector2& position,
 		const Vector2& size,
@@ -282,6 +318,24 @@ struct Entity
 				break;
 			}
 		}
+	}
+
+	static uint32_t getFillColor(Entity& entity)
+	{
+		switch (entity.type)
+		{
+			case Type::Rectangle:
+			case Type::RoundedRectangle:
+			{
+				return entity.id2;
+			}
+			default:
+			{
+				//assert false
+				break;
+			}
+		}
+		return 0;
 	}
 
 	static uint32_t getFillAlpha(Entity& entity)
@@ -485,6 +539,9 @@ struct Component
 
 	void disable(std::vector<Entity>& entities)
 	{
+		isDragging = 0;
+		isSelected = 0;
+		movement = nullptr;
 		entities[_startIndex].id3 = 0;
 	}
 
@@ -685,9 +742,17 @@ struct Component
 		isDraggable = true;
 	}
 
+	void disableDragging()
+	{
+		clampOffset = nullptr;
+		onDraggingStarted = nullptr;
+		onDraggingStopped = nullptr;
+		isDraggable = false;
+	}
+
 	void onDrag(std::vector<Entity>& entities, const Vector2& delta)
 	{
-		printf("dragging %p\n", this);
+		//printf("dragging %p\n", this);
 		const Vector2& offsetPosition = getOffsetPosition(entities);
 		Vector2 newOffsetPosition = Vector2(offsetPosition.x + delta.x, offsetPosition.y + delta.y);
 		if (clampOffset)
@@ -994,7 +1059,7 @@ struct FixedCapacityPool
 	{
 		for (int32_t i = 0; i < capacity; ++i)
 		{
-			printf("jhelms spawning %d\n", i);
+			//printf("jhelms spawning %d\n", i);
 			auto component = std::shared_ptr<struct Component>(initialize());
 			component->disable(entities);
 			pool.push_back(component);
@@ -1141,6 +1206,50 @@ struct RectangleComponent : DrawComponent
 		Entity::setFillColor(rectangle, rgba);
 	}
 
+	uint32_t getFillColor(std::vector<Entity>& entities)
+	{
+		Entity& rectangle = entities[getStartIndex(entities)+1];
+		return Entity::getFillColor(rectangle);
+	}
+
+	void doLayoutEntities(
+		std::vector<Entity>& entities,
+		const Vector2& oldScreenPosition,
+		const Vector2& oldScreenSize) override
+	{
+		Entity& rectangle = entities[getStartIndex(entities)+1];
+		rectangle.coord1 = screenPosition;
+		rectangle.coord3 = screenSize;
+	}
+
+	void doLayout(
+		std::vector<Entity>& entities,
+		const Vector2& parentPosition,
+		const Vector2& parentSize) override
+	{
+		const Vector2 oldScreenSize = screenSize;
+		const Vector2 oldScreenPosition = screenPosition;
+		doLayoutCommon(entities, parentPosition, parentSize);
+		doLayoutEntities(entities, oldScreenPosition, oldScreenSize);
+		doLayoutChildren(entities);
+	}
+};
+
+struct StrokeRectangleComponent : DrawComponent
+{
+	StrokeRectangleComponent(std::vector<Entity>& entities, float strokeWidth, uint32_t rgba)
+	: DrawComponent(entities)
+	{
+		printf("jhelms %x\n", rgba);
+		addEntity(entities, Entity::strokeRectangle(Vector2(), Vector2(), strokeWidth, rgba));
+	}
+
+	void setStrokeColor(std::vector<Entity>& entities, uint32_t rgba)
+	{
+		Entity& rectangle = entities[getStartIndex(entities)+1];
+		Entity::setStrokeColor(rectangle, rgba);
+	}
+
 	void doLayoutEntities(
 		std::vector<Entity>& entities,
 		const Vector2& oldScreenPosition,
@@ -1194,7 +1303,7 @@ struct FilledCircleComponent : DrawComponent
 		//circle.coord1 = Vector2(screenPosition.x - anchorPoint.x*radius*2.0f, screenPosition.y - anchorPoint.y*radius*2.0f);
 		circle.coord1 = screenPosition;
 		circle.coord3 = Vector2(screenSize.x/2.0f, screenSize.y/2.0f);
-		printf("FilledCircleComponent doLayoutEntities %4.2f x %4.2f\n", screenPosition.x, screenPosition.y);
+		//printf("FilledCircleComponent doLayoutEntities %4.2f x %4.2f\n", screenPosition.x, screenPosition.y);
 	}
 
 	void doLayout(
@@ -1370,7 +1479,8 @@ struct ComponentCell : Component
 
 struct ComponentGrid : Component
 {
-	Vector2Int matrixSize;
+	Vector2Int maxGridSize;
+	Vector2Int gridSize;
 	std::function<struct Component*()> createBGCell;
 	std::function<struct Component*()> createFGCell;
 	std::function<void(struct Component*, uint32_t, uint32_t, uint32_t)> setCellState;
@@ -1383,31 +1493,26 @@ struct ComponentGrid : Component
 
 	ComponentGrid(
 		std::vector<Entity>& entities,
-		Vector2Int matrixSize,
+		Vector2Int maxGridSize,
 		float paddingPercent,
 		std::function<struct Component*()> createBGCell,
 		std::function<struct Component*()> createFGCell,
 		std::function<void(struct Component*, uint32_t, uint32_t, uint32_t)> setCellState)
-	: matrixSize(matrixSize)
+	: maxGridSize(maxGridSize)
+	, gridSize(maxGridSize)
 	, paddingPercent(paddingPercent)
-	, paddingRelativeSize(paddingPercent/(matrixSize.x + 1), paddingPercent/(matrixSize.y + 1))
+	, paddingRelativeSize(paddingPercent/(gridSize.x + 1), paddingPercent/(gridSize.y + 1))
 	, createBGCell(createBGCell)
 	, createFGCell(createFGCell)
 	, setCellState(setCellState)
 	, Component(entities)
 	{
-		// float paddingRelativeX = paddingPercent/(matrixSize.x + 1);
-		// float cellRelativeX = (1.0 - paddingPercent)/matrixSize.x;
+		cellRelativeSize = Vector2((1.0 - paddingPercent)/gridSize.x, (1.0 - paddingPercent)/gridSize.y);
 
-		// float paddingRelativeY = paddingPercent/(matrixSize.y + 1);
-		// float cellRelativeY = (1.0 - paddingPercent)/matrixSize.y;
-
-		cellRelativeSize = Vector2((1.0 - paddingPercent)/matrixSize.x, (1.0 - paddingPercent)/matrixSize.y);
-
-		for (int32_t row = 0; row < matrixSize.y; ++row)
+		for (int32_t row = 0; row < maxGridSize.y; ++row)
 		{
 			grid.push_back(std::vector<std::shared_ptr<ComponentCell>>());
-			for (int32_t column = 0; column < matrixSize.x; ++column)
+			for (int32_t column = 0; column < maxGridSize.x; ++column)
 			{
 				grid[row].push_back(nullptr);
 				if (createBGCell)
@@ -1424,7 +1529,7 @@ struct ComponentGrid : Component
 
 		pool.reset(new FixedCapacityPool(
 			entities,
-			matrixSize.x*matrixSize.y*2,
+			maxGridSize.x*maxGridSize.y*2,
 			//0,
 			this,
 			[&entities, createFGCell](){
@@ -1442,9 +1547,33 @@ struct ComponentGrid : Component
 		));
 	}
 
+	void clear(std::vector<Entity>& entities)
+	{
+		for (int32_t row = 0; row < maxGridSize.y; ++row)
+		{
+			for (int32_t column = 0; column < maxGridSize.x; ++column)
+			{
+				auto cell = grid[row][column];
+				if (cell)
+				{
+					cell->disable(entities);
+					grid[row][column] = nullptr;
+				}
+			}
+		}
+	}
+
+	void resizeGrid(std::vector<Entity>& entities, const Vector2Int& newGridSize)
+	{
+		clear(entities);
+		gridSize = newGridSize;
+		cellRelativeSize = Vector2((1.0 - paddingPercent)/gridSize.x, (1.0 - paddingPercent)/gridSize.y);
+		paddingRelativeSize = Vector2(paddingPercent/(gridSize.x + 1), paddingPercent/(gridSize.y + 1));
+	}
+
 	void isValidCoordinate(uint32_t row, uint32_t column)
 	{
-		if (row >= matrixSize.y || column >= matrixSize.x)
+		if (row >= gridSize.y || column >= gridSize.x)
 		{
 			printf("invalid coordinate %ux%u\n", row, column);
 		}
@@ -1479,7 +1608,7 @@ struct ComponentGrid : Component
 		isValidCoordinate(row, column);
 		auto cell = std::dynamic_pointer_cast<ComponentCell>(pool->get(entities));
 		//assert cell is not nullptr
-		printf("jhelms spawn %p\n", cell.get());
+		//printf("jhelms spawn %p\n", cell.get());
 		cell->row = row;
 		cell->column = column;
 		layoutCell(entities, cell, row, column);
@@ -1516,9 +1645,9 @@ struct ComponentGrid : Component
 
 	void validateConsistency()
 	{
-		for (int32_t row = 0; row < matrixSize.y; ++row)
+		for (int32_t row = 0; row < gridSize.y; ++row)
 		{
-			for (int32_t column = 0; column < matrixSize.x; ++column)
+			for (int32_t column = 0; column < gridSize.x; ++column)
 			{
 				auto cell = grid[row][column];
 				if (cell->row != row || cell->column != column)
@@ -1601,9 +1730,9 @@ struct ComponentGrid : Component
 		auto highestCell = cell;
 		uint32_t highestStartIndex = cell->getStartIndex(entities);
 
-		for (int32_t row = 0; row < matrixSize.y; ++row)
+		for (int32_t row = 0; row < gridSize.y; ++row)
 		{
-			for (int32_t column = 0; column < matrixSize.x; ++column)
+			for (int32_t column = 0; column < gridSize.x; ++column)
 			{
 				auto otherCell = grid[row][column];
 				if (!otherCell)
@@ -2194,10 +2323,21 @@ struct Game
 				case Type::Rectangle:
 				{
 					Engine_FilledRectangle(
-						entity.coord1.x,
-						entity.coord1.y,
-						entity.coord3.x,
-						entity.coord3.y,
+						std::floorf(entity.coord1.x) + 0.0f,
+						std::floorf(entity.coord1.y) + 0.0f,
+						std::ceilf(entity.coord3.x) + 0.0f,
+						std::ceilf(entity.coord3.y) + 0.0f,
+						entity.id2);
+					break;
+				}
+				case Type::StrokeRectangle:
+				{
+					Engine_StrokeRectangle(
+						std::floorf(entity.coord1.x) + 0.0f,
+						std::floorf(entity.coord1.y) + 0.0f,
+						std::ceilf(entity.coord3.x) + 0.0f,
+						std::ceilf(entity.coord3.y) + 0.0f,
+						entity.coord4.x,
 						entity.id2);
 					break;
 				}

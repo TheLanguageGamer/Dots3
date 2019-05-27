@@ -4,10 +4,35 @@ var LibraryEngine = {
 		IMAGE_FOLDER : "../../images/",
 		images : {},
 		mode : 0,
+		sounds: {},
 		init: function() {
 			console.log("$Engine.init");
 			var canvas = Module["canvas"];
 			Engine.ctx = canvas.getContext('2d');
+		},
+		sound: function(src) {
+			this.sound = document.createElement("audio");
+			this.sound.src = src;
+			this.sound.setAttribute("preload", "auto");
+			this.sound.setAttribute("controls", "none");
+			this.sound.style.display = "none";
+			document.body.appendChild(this.sound);
+			this.play = function(){
+				this.sound.play();
+			}
+			this.stop = function(){
+				this.sound.pause();
+			}
+		},
+		registerSound: function(path) {
+			path = UTF8ToString(path);
+			Engine.sounds[path] = new Engine.sound(path);
+		},
+		playSound: function(path) {
+			path = UTF8ToString(path);
+			sound = Engine.sounds[path];
+			sound.stop();
+			sound.play();
 		},
 		setMode: function(mode) {
 			Engine.mode = mode;
@@ -73,6 +98,14 @@ var LibraryEngine = {
 			Engine.ctx.beginPath();
 			Engine.ctx.fillRect(x, y, width, height);
 			Engine.ctx.fill();
+		},
+		strokeRectangle: function(x, y, width, height, thickness, rgba) {
+			Engine.ctx.globalAlpha = (rgba & 0xff) / 255;
+			Engine.ctx.strokeStyle = Engine.translateColorToCSSRGB(rgba);
+			Engine.ctx.lineWidth = thickness;
+			Engine.ctx.beginPath();
+			Engine.ctx.strokeRect(x, y, width, height);
+			Engine.ctx.stroke();
 		},
 		roundedRectangle: function(x, y, width, height, radius, thickness, strokeRgba, fillRgba) {
 
@@ -154,6 +187,10 @@ var LibraryEngine = {
 		Engine.filledRectangle(x, y, width, height, rgba);
 	},
 
+	Engine_StrokeRectangle: function(x, y, width, height, thickness, rgba) {
+		Engine.strokeRectangle(x, y, width, height, thickness, rgba);
+	},
+
 	Engine_RoundedRectangle: function(x, y, width, height, radius, thickness, strokeRgba, fillRgba) {
 		Engine.roundedRectangle(x, y, width, height, radius, thickness, strokeRgba, fillRgba);
 	},
@@ -176,6 +213,14 @@ var LibraryEngine = {
 
 	Engine_FillPage: function() {
 		Engine.fillPage();
+	},
+
+	Engine_RegisterSound: function(path) {
+		Engine.registerSound(path);
+	},
+
+	Engine_PlaySound: function(path) {
+		Engine.playSound(path);
 	},
 };
 

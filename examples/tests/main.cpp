@@ -239,7 +239,7 @@ struct TestDraggable : Screen
 		dragAnywhere->setRelativePosition(entities, Vector2(0.85f, 0.85f));
 		dragAnywhere->setAnchorPoint(entities, Vector2(0.5f, 0.5f));
 		dragAnywhere->setOffsetSize(entities, Vector2(80.0f, 80.0f));
-		dragAnywhere->enableDragging(nullptr);
+		dragAnywhere->enableDragging(nullptr, nullptr, nullptr);
 
 		auto dragHorizontal = std::shared_ptr<struct Component>(new RectangleComponent(entities, 0xAAFFCCFF));
 		dragHorizontal->setRelativePosition(entities, Vector2(0.25f, 0.25f));
@@ -247,7 +247,7 @@ struct TestDraggable : Screen
 		dragHorizontal->setOffsetSize(entities, Vector2(80.0f, 80.0f));
 		dragHorizontal->enableDragging([](Vector2& offsetPosition){
 			offsetPosition.y = 0;
-		});
+		}, nullptr, nullptr);
 
 		auto dragVertical = std::shared_ptr<struct Component>(new RectangleComponent(entities, 0xAACCFFFF));
 		dragVertical->setRelativePosition(entities, Vector2(0.25f, 0.75f));
@@ -255,7 +255,7 @@ struct TestDraggable : Screen
 		dragVertical->setOffsetSize(entities, Vector2(80.0f, 80.0f));
 		dragVertical->enableDragging([](Vector2& offsetPosition){
 			offsetPosition.x = 0;
-		});
+		}, nullptr, nullptr);
 
 		auto ring = std::shared_ptr<StrokeCircleComponent>(new StrokeCircleComponent(entities, 150.0f, 5.0f, 0xAACCFFFF));
 		ring->setRadius(entities, 150.0f, 0.0f);
@@ -275,7 +275,7 @@ struct TestDraggable : Screen
 			offsetPosition.x = r*x/sqrtf(x*x+y*y);
 			offsetPosition.y = r*y/sqrtf(x*x+y*y);
 			printf("clamped position: %4.2f x %4.2f\n", offsetPosition.x, offsetPosition.y);
-		});
+		}, nullptr, nullptr);
 
 		rootComponent->addChild(entities, dragAnywhere);
 		rootComponent->addChild(entities, dragHorizontal);
@@ -397,7 +397,7 @@ struct TestPooling : Screen
 		pool.reset(new FixedCapacityPool(
 			entities,
 			5,
-			rootComponent,
+			rootComponent.get(),
 			[this](){
 				return new CustomButton(entities, [this](const Vector2&, CustomButton* button){
 					button->disable(entities);
