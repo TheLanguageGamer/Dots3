@@ -107,6 +107,17 @@ var LibraryEngine = {
 			Engine.ctx.strokeRect(x, y, width, height);
 			Engine.ctx.stroke();
 		},
+		rectangle: function(x, y, width, height, thickness, stroke, fill) {
+			Engine.ctx.globalAlpha = Math.max((stroke & 0xff) / 255, (fill & 0xff) / 255);
+			Engine.ctx.fillStyle = Engine.translateColorToCSSRGB(fill);
+			Engine.ctx.strokeStyle = Engine.translateColorToCSSRGB(stroke);
+			Engine.ctx.lineWidth = thickness;
+			Engine.ctx.beginPath();
+			Engine.ctx.fillRect(x, y, width, height);
+			Engine.ctx.strokeRect(x, y, width, height);
+			Engine.ctx.fill();
+			Engine.ctx.stroke();
+		},
 		roundedRectangle: function(x, y, width, height, radius, thickness, strokeRgba, fillRgba) {
 
 			Engine.ctx.beginPath();
@@ -189,6 +200,10 @@ var LibraryEngine = {
 
 	Engine_StrokeRectangle: function(x, y, width, height, thickness, rgba) {
 		Engine.strokeRectangle(x, y, width, height, thickness, rgba);
+	},
+
+	Engine_Rectangle: function(x, y, width, height, thickness, stroke, fill) {
+		Engine.rectangle(x, y, width, height, thickness, stroke, fill);
 	},
 
 	Engine_RoundedRectangle: function(x, y, width, height, radius, thickness, strokeRgba, fillRgba) {

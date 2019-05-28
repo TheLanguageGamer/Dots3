@@ -22,6 +22,11 @@ extern "C"
 	extern void Engine_StrokeEllipse(float x, float y, float width, float height, float thickness, uint32_t rgba);
 	extern void Engine_FilledRectangle(float x, float y, float width, float height, uint32_t rgba);
 	extern void Engine_StrokeRectangle(float x, float y, float width, float height, float thickness, uint32_t rgba);
+	extern void Engine_Rectangle(
+		float x, float y,
+		float width, float height,
+		float thickness,
+		uint32_t stroke, uint32_t fill);
 	extern void Engine_FilledText(const char* text, float x, float y, float fontSize, uint32_t rgba);
 	extern float Engine_MeasureTextWidth(const char* text, float fontSize);
 	extern float Engine_MeasureTextHeight(const char* text, float fontSize);
@@ -42,6 +47,7 @@ enum Type
 	FillCircle,
 	StrokeCircle,
 	Rectangle,
+	FillRectangle,
 	StrokeRectangle,
 	RoundedRectangle,
 	Text,
@@ -242,10 +248,26 @@ struct Entity
 	static Entity rectangle(
 		const Vector2& position,
 		const Vector2& size,
-		uint32_t rgba)
+		float thickness,
+		uint32_t stroke,
+		uint32_t fill)
 	{
 		Entity entity;
 		entity.type = Type::Rectangle;
+		entity.coord1 = position;
+		entity.coord3 = size;
+		entity.id1 = stroke;
+		entity.id2 = fill;
+		return entity;
+	}
+
+	static Entity fillRectangle(
+		const Vector2& position,
+		const Vector2& size,
+		uint32_t rgba)
+	{
+		Entity entity;
+		entity.type = Type::FillRectangle;
 		entity.coord1 = position;
 		entity.coord3 = size;
 		entity.id2 = rgba;
@@ -307,10 +329,15 @@ struct Entity
 		switch (entity.type)
 		{
 			case Type::Rectangle:
+			case Type::FillRectangle:
 			case Type::RoundedRectangle:
 			{
 				entity.id2 = fillRgba;
 				break;
+			}
+			case Type::Text:
+			{
+				entity.id1 = fillRgba;
 			}
 			default:
 			{
@@ -325,6 +352,7 @@ struct Entity
 		switch (entity.type)
 		{
 			case Type::Rectangle:
+			case Type::FillRectangle:
 			case Type::RoundedRectangle:
 			{
 				return entity.id2;
@@ -342,6 +370,8 @@ struct Entity
 	{
 		switch (entity.type)
 		{
+			case Type::Rectangle:
+			case Type::FillRectangle:
 			case Type::RoundedRectangle:
 			{
 				return entity.id2 & 0xFF;
@@ -632,6 +662,30 @@ struct Component
 		}
 	}
 
+	static Vector2 impliedPosition(
+		const Vector2& parentPosition,
+		const Vector2& parentSize,
+		const Vector2& relativeSize,
+		const Vector2& offsetSize,
+		const Vector2& relativePosition,
+		const Vector2& offsetPosition,
+		const Vector2& anchorPoint)
+	{
+		//printf("doLayoutCommon %4.2f x %4.2f, %4.2f x %4.2f, %4.2f x %4.2f\n", parentSize.x, parentSize.y, offsetSize.x, offsetSize.y, relativeSize.x, relativeSize.y);
+
+		float newWidth = relativeSize.x*parentSize.x + offsetSize.x;
+		float newHeight = relativeSize.y*parentSize.y + offsetSize.y;
+		//printf("new: %4.2f x %4.2f\n", newWidth, newHeight);
+
+		const Vector2 screenSize = Vector2(newWidth, newHeight);
+		//applySizeMode();
+
+		float newX = parentPosition.x + (parentSize.x)*relativePosition.x - anchorPoint.x*screenSize.x + offsetPosition.x;
+		float newY = parentPosition.y + (parentSize.y)*relativePosition.y - anchorPoint.y*screenSize.y + offsetPosition.y;
+		//printf("jhelms doLayoutCommon %4.2f, %4.2f, %4.2f, %4.2f, %4.2f\n", newX, parentPosition.x, relativePosition.x, screenSize.x, offsetSize.x);
+		return Vector2(newX, newY);
+	}
+
 	void doLayoutCommon(
 		std::vector<Entity>& entities,
 		const Vector2& parentPosition,
@@ -657,7 +711,7 @@ struct Component
 		//printf("jhelms doLayoutCommon %4.2f, %4.2f, %4.2f, %4.2f, %4.2f\n", newX, parentPosition.x, relativePosition.x, screenSize.x, offsetSize.x);
 		screenPosition = Vector2(newX, newY);
 
-		applySizeMode();
+		// applySizeMode();
 	}
 
 	void convertOffsetToRelativePosition(std::vector<Entity>& entities)
@@ -1192,12 +1246,12 @@ struct RoundedRectangleComponent : DrawComponent
 	}
 };
 
-struct RectangleComponent : DrawComponent
+struct FilledRectangleComponent : DrawComponent
 {
-	RectangleComponent(std::vector<Entity>& entities, uint32_t rgba)
+	FilledRectangleComponent(std::vector<Entity>& entities, uint32_t rgba)
 	: DrawComponent(entities)
 	{
-		addEntity(entities, Entity::rectangle(Vector2(), Vector2(), rgba));
+		addEntity(entities, Entity::fillRectangle(Vector2(), Vector2(), rgba));
 	}
 
 	void setFillColor(std::vector<Entity>& entities, uint32_t rgba)
@@ -1248,6 +1302,44 @@ struct StrokeRectangleComponent : DrawComponent
 	{
 		Entity& rectangle = entities[getStartIndex(entities)+1];
 		Entity::setStrokeColor(rectangle, rgba);
+	}
+
+	void doLayoutEntities(
+		std::vector<Entity>& entities,
+		const Vector2& oldScreenPosition,
+		const Vector2& oldScreenSize) override
+	{
+		Entity& rectangle = entities[getStartIndex(entities)+1];
+		rectangle.coord1 = screenPosition;
+		rectangle.coord3 = screenSize;
+	}
+
+	void doLayout(
+		std::vector<Entity>& entities,
+		const Vector2& parentPosition,
+		const Vector2& parentSize) override
+	{
+		const Vector2 oldScreenSize = screenSize;
+		const Vector2 oldScreenPosition = screenPosition;
+		doLayoutCommon(entities, parentPosition, parentSize);
+		doLayoutEntities(entities, oldScreenPosition, oldScreenSize);
+		doLayoutChildren(entities);
+	}
+};
+
+struct RectangleComponent : DrawComponent
+{
+	RectangleComponent(std::vector<Entity>& entities, float strokeWidth, uint32_t stroke, uint32_t fill)
+	: DrawComponent(entities)
+	{
+		printf("jhelms %x - %x\n", stroke, fill);
+		addEntity(entities, Entity::rectangle(Vector2(), Vector2(), strokeWidth, stroke, fill));
+	}
+
+	void setStrokeColor(std::vector<Entity>& entities, uint32_t stroke)
+	{
+		Entity& rectangle = entities[getStartIndex(entities)+1];
+		Entity::setStrokeColor(rectangle, stroke);
 	}
 
 	void doLayoutEntities(
@@ -1371,6 +1463,11 @@ struct TextComponent : DrawComponent
 		//addEntity(entities, Entity::rectangle(Vector2(), Vector2(), 0x00000099));
 	}
 
+	void setFillColor(std::vector<Entity>& entities, uint32_t rgba)
+	{
+		Entity::setFillColor(entities[getStartIndex(entities)+1], rgba);
+	}
+
 	void setSizeMode(std::vector<Entity>& entities, SizeMode sizeMode) override
 	{
 		_sizeMode = sizeMode;
@@ -1384,7 +1481,6 @@ struct TextComponent : DrawComponent
 			case SizeMode_SizeToContents:
 			{
 				setOffsetSize(entities, entities[getStartIndex(entities)+1].coord3);
-				relayout(entities);
 				break;
 			}
 		}
@@ -1422,6 +1518,10 @@ struct TextComponent : DrawComponent
 			{				
 				const std::string& text = Entity::getText(textEntity);
 				float fontSize = Entity::getFontSize(textEntity);
+				if (fontSize == 0.0f)
+				{
+					fontSize = 10.0f;
+				}
 				float width = Engine_MeasureTextWidth(text.c_str(), fontSize);
 				float ratio = screenSize.x/width;
 				float newFontSize = fontSize*ratio;
@@ -1430,6 +1530,8 @@ struct TextComponent : DrawComponent
 				Entity::setPosition(
 					textEntity,
 					Vector2(screenPosition.x, screenPosition.y + (screenSize.y-newFontSize)*anchorPoint.y));
+				// printf("text fontSize: %4.2f, %4.2f, %4.2f\n",
+				// 	fontSize, screenSize.x, width);
 				//Engine_MeasureTextHeight(text.c_str(), newFontSize);
 				//printf("jhelms setting text size: %4.2f, %4.2f, %4.2f, %4.2f, %4.2f\n", screenSize.x, width, ratio, newFontSize, newHeight);
 
@@ -1445,7 +1547,11 @@ struct TextComponent : DrawComponent
 			}
 			case SizeMode_SizeToContents:
 			{
+				// float fontSize = Entity::getFontSize(textEntity);
+				// printf("fontSize: %4.2f, entitySize: %4.2f, %4.2f\n",
+				// 	fontSize, entities[getStartIndex(entities)+1].coord3.x, entities[getStartIndex(entities)+1].coord3.y);
 				Entity::setPosition(textEntity, screenPosition);
+				setOffsetSize(entities, entities[getStartIndex(entities)+1].coord3);
 				break;
 			}
 		}
@@ -1468,17 +1574,27 @@ struct ComponentCell : Component
 {
 	uint32_t row;
 	uint32_t column;
+	uint32_t state;
 
 	std::shared_ptr<struct Component> custom;
 
 	ComponentCell(std::vector<Entity>& entities)
 	: row(0)
 	, column(0)
+	, state(0)
 	, Component(entities) {}
 };
 
 struct ComponentGrid : Component
 {
+	struct CellRelationship
+	{
+		std::shared_ptr<ComponentCell> cell;
+		float distance;
+
+		CellRelationship(std::shared_ptr<ComponentCell> cell, float distance)
+		: cell(cell), distance(distance) {}
+	};
 	Vector2Int maxGridSize;
 	Vector2Int gridSize;
 	std::function<struct Component*()> createBGCell;
@@ -1547,6 +1663,99 @@ struct ComponentGrid : Component
 		));
 	}
 
+	CellRelationship getClosestCell(std::vector<Entity>& entities, std::shared_ptr<ComponentCell> cell)
+	{	
+		uint32_t inRow = cell->row;
+		uint32_t inColumn = cell->column;
+		uint32_t closestRow = inRow;
+		uint32_t closestColumn = inColumn;
+		float minDistance = 1000000;
+		std::shared_ptr<ComponentCell> best = nullptr;
+		for (int32_t row = 0; row < gridSize.y; ++row)
+		{
+			for (int32_t column = 0; column < gridSize.x; ++column)
+			{
+				auto other = grid[row][column];
+				float distance = 1000000;
+				if (row == inRow && column == inColumn)
+				{
+					Vector2 originalPosition = impliedPosition(
+						screenPosition,
+						screenSize,
+						Vector2(cellRelativeSize.x, cellRelativeSize.y),
+						Vector2(),
+						getPosition(entities, row, column),
+						Vector2(),
+						cell->getAnchorPoint(entities));
+					distance = Vector2::distance(cell->screenPosition, originalPosition);
+				}
+				else
+				{
+					distance = Vector2::distance(cell->screenPosition, other->screenPosition);
+				}
+				if (distance < minDistance && other->isDraggable)
+				{
+					minDistance = distance;
+					best = other;
+					closestRow = row;
+					closestColumn = column;
+				}
+			}
+		}
+
+		return CellRelationship(best, minDistance);
+	}
+
+	void moveToClosestCellAndShift(std::vector<Entity>& entities, std::shared_ptr<ComponentCell> cell)
+	{
+		//assert gridSize.x == 1
+		CellRelationship closest = getClosestCell(entities, cell);
+
+		if (closest.distance >= 1.5f*cell->screenSize.x/2.0
+			|| closest.cell == nullptr
+			|| closest.cell->row == cell->row)
+		{
+			moveSwap(entities, cell->row, cell->column, cell->row, cell->column);
+			return;
+		}
+
+		uint32_t targetRow = closest.cell->row;
+		uint32_t targetColumn = closest.cell->column;
+
+		if (targetRow < cell->row)
+		{
+			for (int32_t row = cell->row - 1; row >= (int32_t)targetRow; --row)
+			{
+				printf("moving %d", row);
+				moveSwap(entities, row, 0, row + 1, 0);
+			}
+			moveSwap(entities, cell->row, cell->column, targetRow, targetColumn);
+		}
+		else
+		{
+			for (int32_t row = cell->row + 1; row <= (int32_t)targetRow; ++row)
+			{
+				printf("moving %d", row);
+				moveSwap(entities, row, 0, row - 1, 0);
+			}
+			moveSwap(entities, cell->row, cell->column, targetRow, targetColumn);
+		}
+	}
+
+	void swapWithClosestCell(std::vector<Entity>& entities, std::shared_ptr<ComponentCell> cell)
+	{
+		CellRelationship closest = getClosestCell(entities, cell);
+
+		if (closest.distance < 1.5f*cell->screenSize.x/2.0)
+		{
+			moveSwap(entities, cell->row, cell->column, closest.cell->row, closest.cell->column);
+		}
+		else
+		{
+			moveSwap(entities, cell->row, cell->column, cell->row, cell->column);
+		}
+	}
+
 	void clear(std::vector<Entity>& entities)
 	{
 		for (int32_t row = 0; row < maxGridSize.y; ++row)
@@ -1611,6 +1820,7 @@ struct ComponentGrid : Component
 		//printf("jhelms spawn %p\n", cell.get());
 		cell->row = row;
 		cell->column = column;
+		cell->state = state;
 		layoutCell(entities, cell, row, column);
 		grid[row][column] = cell;
 		setCellState(cell->custom.get(), row, column, state);
@@ -1686,6 +1896,8 @@ struct ComponentGrid : Component
 		const uint32_t row2,
 		const uint32_t column2)
 	{
+		isValidCoordinate(row1, column1);
+		isValidCoordinate(row2, column2);
 		auto cell1 = grid[row1][column1];
 		auto cell2 = grid[row2][column2];
 
@@ -2321,6 +2533,18 @@ struct Game
 					break;
 				}
 				case Type::Rectangle:
+				{
+					Engine_Rectangle(
+						std::floorf(entity.coord1.x) + 0.0f,
+						std::floorf(entity.coord1.y) + 0.0f,
+						std::ceilf(entity.coord3.x) + 0.0f,
+						std::ceilf(entity.coord3.y) + 0.0f,
+						entity.coord4.x,
+						entity.id1,
+						entity.id2);
+					break;
+				}
+				case Type::FillRectangle:
 				{
 					Engine_FilledRectangle(
 						std::floorf(entity.coord1.x) + 0.0f,

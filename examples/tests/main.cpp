@@ -46,7 +46,7 @@ struct TestTextComponent : Screen
 		rootComponent = std::shared_ptr<struct Component>(new struct Component(entities));
 		rootComponent->setRelativeSize(entities, Vector2(1.0f, 1.0f));
 
-		auto bg1 = std::shared_ptr<struct Component>(new RectangleComponent(entities, 0xFFFFFFFF));
+		auto bg1 = std::shared_ptr<struct Component>(new FilledRectangleComponent(entities, 0xFFFFFFFF));
 		printf("2\n");
 		bg1->setRelativeSize(entities, Vector2(0.5f, 0.5f));
 		bg1->setRelativePosition(entities, Vector2(0.5f, 0.5f));
@@ -83,7 +83,7 @@ struct TestTextComponent : Screen
 		cText->setAnchorPoint(entities, Vector2(0.5f, 0.5f));
 		bg1->addChild(entities, cText);
 
-		auto bg2 = std::shared_ptr<struct Component>(new RectangleComponent(entities, 0xFFFFFFFF));
+		auto bg2 = std::shared_ptr<struct Component>(new FilledRectangleComponent(entities, 0xFFFFFFFF));
 		printf("2\n");
 		bg2->setOffsetSize(entities, Vector2(10.0f, 10.0f));
 		bg2->setRelativePosition(entities, Vector2(1.0f, 0.0f));
@@ -109,7 +109,7 @@ struct TestTextComponent : Screen
 		fitToContainer2->setRelativeSize(entities, Vector2(1.0f, 1.0f));
 		bg2->addChild(entities, fitToContainer2);
 
-		auto bg3 = std::shared_ptr<struct Component>(new RectangleComponent(entities, 0xFFFFFFFF));
+		auto bg3 = std::shared_ptr<struct Component>(new FilledRectangleComponent(entities, 0xFFFFFFFF));
 		printf("2\n");
 		bg3->setOffsetSize(entities, Vector2(10.0f, 10.0f));
 		bg3->setRelativePosition(entities, Vector2(1.0f, 0.5f));
@@ -135,7 +135,7 @@ struct TestTextComponent : Screen
 		fitToContainer3->setRelativeSize(entities, Vector2(1.0f, 1.0f));
 		bg3->addChild(entities, fitToContainer3);
 
-		auto bg4 = std::shared_ptr<struct Component>(new RectangleComponent(entities, 0xFFFFFFFF));
+		auto bg4 = std::shared_ptr<struct Component>(new FilledRectangleComponent(entities, 0xFFFFFFFF));
 		printf("2\n");
 		bg4->setOffsetSize(entities, Vector2(10.0f, 10.0f));
 		bg4->setRelativePosition(entities, Vector2(1.0f, 1.0f));
@@ -235,13 +235,13 @@ struct TestDraggable : Screen
 		rootComponent = std::shared_ptr<struct Component>(new struct Component(entities));
 		rootComponent->setRelativeSize(entities, Vector2(1.0f, 1.0f));
 
-		auto dragAnywhere = std::shared_ptr<struct Component>(new RectangleComponent(entities, 0xFFFFFFFF));
+		auto dragAnywhere = std::shared_ptr<struct Component>(new FilledRectangleComponent(entities, 0xFFFFFFFF));
 		dragAnywhere->setRelativePosition(entities, Vector2(0.85f, 0.85f));
 		dragAnywhere->setAnchorPoint(entities, Vector2(0.5f, 0.5f));
 		dragAnywhere->setOffsetSize(entities, Vector2(80.0f, 80.0f));
 		dragAnywhere->enableDragging(nullptr, nullptr, nullptr);
 
-		auto dragHorizontal = std::shared_ptr<struct Component>(new RectangleComponent(entities, 0xAAFFCCFF));
+		auto dragHorizontal = std::shared_ptr<struct Component>(new FilledRectangleComponent(entities, 0xAAFFCCFF));
 		dragHorizontal->setRelativePosition(entities, Vector2(0.25f, 0.25f));
 		dragHorizontal->setAnchorPoint(entities, Vector2(0.5f, 0.5f));
 		dragHorizontal->setOffsetSize(entities, Vector2(80.0f, 80.0f));
@@ -249,7 +249,7 @@ struct TestDraggable : Screen
 			offsetPosition.y = 0;
 		}, nullptr, nullptr);
 
-		auto dragVertical = std::shared_ptr<struct Component>(new RectangleComponent(entities, 0xAACCFFFF));
+		auto dragVertical = std::shared_ptr<struct Component>(new FilledRectangleComponent(entities, 0xAACCFFFF));
 		dragVertical->setRelativePosition(entities, Vector2(0.25f, 0.75f));
 		dragVertical->setAnchorPoint(entities, Vector2(0.5f, 0.5f));
 		dragVertical->setOffsetSize(entities, Vector2(80.0f, 80.0f));
