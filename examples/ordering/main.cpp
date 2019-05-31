@@ -179,6 +179,81 @@ std::vector<Trivium> getTrivia()
 			"https://en.wikipedia.org/wiki/French_Revolution#Storming_of_the_Bastille",
 			"The Storming of the Bastille and the beginning of the French Revolution",
 			1789),
+		Trivium(
+			Trivium::Year,
+			"https://en.wikipedia.org/wiki/Battle_of_Hastings",
+			"William the Conqueror defeats Harold at the Battle of Hastings",
+			1066),
+		Trivium(
+			Trivium::Year,
+			"https://en.wikipedia.org/wiki/Battle_of_Hastings",
+			"William the Conqueror defeats Harold at the Battle of Hastings",
+			1066),
+		Trivium(
+			Trivium::Year,
+			"https://en.wikipedia.org/wiki/Magna_Carta#Great_Charter_of_1215",
+			"The sealing of the Magna Carta, offering protection from illegal imprisonment and other rights",
+			1215),
+		Trivium(
+			Trivium::Year,
+			"https://en.wikipedia.org/wiki/Black_Death_in_England#Death_toll",
+			"The Black Death arrives in England, eventually killing four million",
+			1348),
+		Trivium(
+			Trivium::Year,
+			"https://en.wikipedia.org/wiki/Hamlet",
+			"William Shakespeare writes Hamlet",
+			1602),
+		Trivium(
+			Trivium::Year,
+			"https://en.wikipedia.org/wiki/Gunpowder_Plot",
+			"Guy Fawkes' plot to assasinate King James I is thwarted",
+			1605),
+		Trivium(
+			Trivium::Year,
+			"https://en.wikipedia.org/wiki/Battle_of_Waterloo",
+			"The Duke of Wellington defeats Napoleon at the Battle of Waterloo",
+			1815),
+		Trivium(
+			Trivium::Year,
+			"https://en.wikipedia.org/wiki/Tim_Berners-Lee",
+			"Tim Berners-Lee invents the World Wide Web",
+			1989),
+		Trivium(
+			Trivium::Year,
+			"https://en.wikipedia.org/wiki/Muhammad",
+			"Muhammad, the founder of Islam, is born",
+			570),
+		Trivium(
+			Trivium::Year,
+			"https://en.wikipedia.org/wiki/Muhammad",
+			"Muhammad, the founder of Islam, is born",
+			570),
+		Trivium(
+			Trivium::Year,
+			"https://en.wikipedia.org/wiki/Spanish_Armada",
+			"King Philip II's Spanish Armada is defeated by an English naval force",
+			1588),
+		Trivium(
+			Trivium::Year,
+			"https://en.wikipedia.org/wiki/Suez_Canal",
+			"The Suez Canal opens, connecting the Mediterranean Sea and the Red Sea",
+			1869),
+		Trivium(
+			Trivium::Year,
+			"https://en.wikipedia.org/wiki/Soga%E2%80%93Mononobe_conflict",
+			"The pro-Buddhist Soga clan defeats the pro-Shinto Mononobe clan in Japan",
+			587),
+		Trivium(
+			Trivium::Year,
+			"https://en.wikipedia.org/wiki/The_Tale_of_Genji",
+			"The Tale of Genji, considered the first novel, is written by a Japanese woman",
+			1010),
+		Trivium(
+			Trivium::Year,
+			"https://en.wikipedia.org/wiki/Symphony_No._9_(Beethoven)",
+			"Ludwig van Beethoven premieres his Symphony No. 9",
+			1824),
 	};
 }
 
@@ -227,6 +302,37 @@ struct Color
 		return color;
 	}
 };
+
+struct LyricsLevel
+{
+	std::vector<std::string> lines;
+};
+
+static const std::vector<LyricsLevel> getLyricsLevels()
+{
+	std::vector<LyricsLevel> levels;
+
+	LyricsLevel level1;
+	level1.lines = std::vector<std::string>({
+		"Hey Jude, don't make it bad",
+		"Take a sad song and make it better",
+		"Remember to let her into your heart",
+		"Then you can start to make it better",
+		"",
+		"Hey Jude, don't be afraid",
+		"You were made to go out and get her",
+		"The minute you let her under your skin",
+		"Then you begin to make it better",
+		"",
+		"And anytime you feel the pain, hey Jude, refrain",
+		"Don't carry the world upon your shoulders",
+		"For well you know that it's a fool who plays it cool",
+		"By making his world a little colder",
+	});
+	levels.push_back(level1);
+
+	return levels;
+}
 
 struct ColorLevel
 {
@@ -345,6 +451,7 @@ struct TriviaGame : Screen
 				{
 					auto triviumComponent = dynamic_cast<TriviumComponent*>(cell);
 					triviumComponent->setTrivium(entities, trivia[state]);
+					//printf("jhelms trivium: %s\n", trivia[state].text.c_str());
 				}
 			)
 		);
@@ -409,13 +516,16 @@ struct TriviaGame : Screen
 				auto cell = board->grid[row][column];
 				//assert cell
 				auto triviumComponent = std::dynamic_pointer_cast<TriviumComponent>(cell->custom);
-				Color color;
-				color.alpha = 0xFF;
-				color.red = 0x30;
-				color.blue = 0x90;
-				color.green = 0x90 + ((0xFF-0x90)*row)/board->gridSize.y;
-				printf("setting row %d to %x\n", row, color.rgba());
-				triviumComponent->valueLabel->setFillColor(entities, color.rgba());
+				Color valueColor;
+				valueColor.alpha = 0xFF;
+				valueColor.red = 0x30;
+				valueColor.blue = 0x90;
+				valueColor.green = 0x90 + ((0xFF-0x90)*row)/board->gridSize.y;
+				//printf("setting row %d to %x\n", row, valueColor.rgba());
+				triviumComponent->valueLabel->setFillColor(entities, valueColor.rgba());
+				triviumComponent->setFillColor(entities, 0x003045FF);
+				
+				cell->disableDragging();
 			}
 		}
 	}
@@ -466,6 +576,7 @@ struct TriviaGame : Screen
 					[this, cell](){
 						cell->convertOffsetToRelativePosition(entities);
 						board->moveToClosestCellAndShift(entities, cell);
+						//board->swapWithClosestCell(entities, cell);
 						if (checkIfWinning())
 						{
 							onWin();
@@ -478,6 +589,7 @@ struct TriviaGame : Screen
 		{
 			randomize();
 		}
+		board->relayout(entities);
 	}
 };
 
@@ -775,7 +887,8 @@ int main()
 	Game game;
 	std::shared_ptr<Screen> colorGame = std::shared_ptr<Screen>(new ColorGame());
 	std::shared_ptr<TriviaGame> triviaGame = std::shared_ptr<TriviaGame>(new TriviaGame());
-	game.setScreen(colorGame);
+	//std::shared_ptr<TriviaGame> triviaGame = std::shared_ptr<TriviaGame>(new TriviaGame());
+	game.setScreen(triviaGame);
 	bool firstLoop = true;
 	int32_t mode = 1;
 	loop = [&]

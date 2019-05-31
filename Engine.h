@@ -569,8 +569,8 @@ struct Component
 
 	void disable(std::vector<Entity>& entities)
 	{
-		isDragging = 0;
-		isSelected = 0;
+		isDragging = false;
+		isSelected = false;
 		movement = nullptr;
 		entities[_startIndex].id3 = 0;
 	}
@@ -1342,6 +1342,12 @@ struct RectangleComponent : DrawComponent
 		Entity::setStrokeColor(rectangle, stroke);
 	}
 
+	void setFillColor(std::vector<Entity>& entities, uint32_t rgba)
+	{
+		Entity& rectangle = entities[getStartIndex(entities)+1];
+		Entity::setFillColor(rectangle, rgba);
+	}
+
 	void doLayoutEntities(
 		std::vector<Entity>& entities,
 		const Vector2& oldScreenPosition,
@@ -1806,6 +1812,7 @@ struct ComponentGrid : Component
 	{
 		cell->setRelativeSize(entities, Vector2(cellRelativeSize.x, cellRelativeSize.y));
 		cell->setRelativePosition(entities, getPosition(entities, row, column));
+		cell->setOffsetPosition(entities, Vector2());
 	}
 
 	std::shared_ptr<ComponentCell> spawn(
@@ -1817,13 +1824,13 @@ struct ComponentGrid : Component
 		isValidCoordinate(row, column);
 		auto cell = std::dynamic_pointer_cast<ComponentCell>(pool->get(entities));
 		//assert cell is not nullptr
-		//printf("jhelms spawn %p\n", cell.get());
 		cell->row = row;
 		cell->column = column;
 		cell->state = state;
 		layoutCell(entities, cell, row, column);
 		grid[row][column] = cell;
 		setCellState(cell->custom.get(), row, column, state);
+		printf("jhelms spawn %p %ux%u == %ux%u\n", cell.get(), row, column, cell->row, cell->column);
 		return cell;
 	}
 
@@ -1908,6 +1915,8 @@ struct ComponentGrid : Component
 		grid[row1][column1] = cell2;
 		grid[row2][column2] = cell1;
 
+		printf("jhelms moveSwap (%p) %ux%u -> (%p) %ux%u\n", cell1.get(), row1, column1, cell2.get(), row2, column2);
+
 		auto animation1 = std::shared_ptr<SpringAnimation>(new SpringAnimation(
 			cell1,
 			SpringAnimation::RelativePosition,
@@ -1960,7 +1969,7 @@ struct ComponentGrid : Component
 			}
 		}
 
-		// printf("swapToTop 2\n");
+		printf("swapToTop 2 %ux%u\n", highestCell->row, highestCell->column);
 		// validateConsistency();
 		swapComponentEntities(entities, cell.get(), highestCell.get());
 
