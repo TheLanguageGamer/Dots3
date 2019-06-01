@@ -112,6 +112,16 @@ struct BoxInt
 	, size(size) {}
 };
 
+struct Rect2D
+{
+	Vector2 minPoint;
+	Vector2 maxPoint;
+
+	Rect2D(const Vector2& minPoint, const Vector2& maxPoint)
+	: minPoint(minPoint)
+	, maxPoint(maxPoint) {}
+};
+
 static bool doesPointIntersectRect(const Vector2& point,
 								   const Vector2& rectPosition,
 								   const Vector2& rectSize)
@@ -449,6 +459,7 @@ struct Component
 		SizeMode_Normal,
 		SizeMode_FixedAspectRatio,
 		SizeMode_SizeToContents,
+		SizeMode_WidthToContents,
 	};
 	enum PositionMode
 	{
@@ -642,6 +653,7 @@ struct Component
 		{
 			case SizeMode_Normal:
 			case SizeMode_SizeToContents:
+			case SizeMode_WidthToContents:
 			{
 				break;
 			}
@@ -727,8 +739,10 @@ struct Component
 		setOffsetPosition(entities, Vector2());
 	}
 
-	void doLayoutChildren(std::vector<Entity>& entities)
+	Rect2D doLayoutChildren(std::vector<Entity>& entities)
 	{
+		Vector2 minPoint;
+		Vector2 maxPoint;
 		Vector2 effectiveScreenPosition = screenPosition;
 		for (auto child : children)
 		{
@@ -746,7 +760,13 @@ struct Component
 			{
 				child->doLayout(entities, screenPosition, screenSize);
 			}
+			minPoint.x = std::min(minPoint.x, child->screenPosition.x);
+			minPoint.y = std::min(minPoint.y, child->screenPosition.y);
+			maxPoint.x = std::max(maxPoint.x, child->screenPosition.x+child->screenSize.x);
+			maxPoint.y = std::max(maxPoint.y, child->screenPosition.y+child->screenSize.y);
 		}
+
+		return Rect2D(minPoint, maxPoint);
 	}
 
 	virtual void doLayout(
@@ -775,8 +795,12 @@ struct Component
 		
 		if (movement)
 		{
+			bool wasComplete = movement->isComplete;
 			movement->onStep(entities, timeDelta);
-			relayout(entities);
+			if (!wasComplete)
+			{
+				relayout(entities);
+			}
 		}
 
 		for (auto child : children)
@@ -1322,8 +1346,12 @@ struct StrokeRectangleComponent : DrawComponent
 		const Vector2 oldScreenSize = screenSize;
 		const Vector2 oldScreenPosition = screenPosition;
 		doLayoutCommon(entities, parentPosition, parentSize);
+		Rect2D rect = doLayoutChildren(entities);
+		if (_sizeMode == SizeMode_WidthToContents)
+		{
+			screenSize.x = rect.maxPoint.x - rect.minPoint.x;
+		}
 		doLayoutEntities(entities, oldScreenPosition, oldScreenSize);
-		doLayoutChildren(entities);
 	}
 };
 
@@ -1481,6 +1509,7 @@ struct TextComponent : DrawComponent
 		{
 			case SizeMode_Normal:
 			case SizeMode_FixedAspectRatio:
+			case SizeMode_WidthToContents:
 			{
 				break;
 			}
@@ -1499,6 +1528,7 @@ struct TextComponent : DrawComponent
 		{
 			case SizeMode_Normal:
 			case SizeMode_FixedAspectRatio:
+			case SizeMode_WidthToContents:
 			{
 				break;
 			}
@@ -1521,6 +1551,7 @@ struct TextComponent : DrawComponent
 		switch (_sizeMode)
 		{
 			case SizeMode_Normal:
+			case SizeMode_WidthToContents:
 			{				
 				const std::string& text = Entity::getText(textEntity);
 				float fontSize = Entity::getFontSize(textEntity);
@@ -1529,6 +1560,10 @@ struct TextComponent : DrawComponent
 					fontSize = 10.0f;
 				}
 				float width = Engine_MeasureTextWidth(text.c_str(), fontSize);
+				if (screenSize.x <= 0.1)
+				{
+					break;
+				}
 				float ratio = screenSize.x/width;
 				float newFontSize = fontSize*ratio;
 				const Vector2& anchorPoint = getAnchorPoint(entities);
@@ -1536,8 +1571,8 @@ struct TextComponent : DrawComponent
 				Entity::setPosition(
 					textEntity,
 					Vector2(screenPosition.x, screenPosition.y + (screenSize.y-newFontSize)*anchorPoint.y));
-				// printf("text fontSize: %4.2f, %4.2f, %4.2f\n",
-				// 	fontSize, screenSize.x, width);
+				// printf("text fontSize: %4.2f, %4.2f, %4.2f, %4.2f, %4.2f\n",
+				// 	fontSize, screenSize.x, width, ratio, newFontSize);
 				//Engine_MeasureTextHeight(text.c_str(), newFontSize);
 				//printf("jhelms setting text size: %4.2f, %4.2f, %4.2f, %4.2f, %4.2f\n", screenSize.x, width, ratio, newFontSize, newHeight);
 
@@ -1778,6 +1813,12 @@ struct ComponentGrid : Component
 		}
 	}
 
+	void remove(std::vector<Entity>& entities, std::shared_ptr<ComponentCell> cell)
+	{
+		cell->disable(entities);
+		grid[cell->row][cell->column] = nullptr;
+	}
+
 	void resizeGrid(std::vector<Entity>& entities, const Vector2Int& newGridSize)
 	{
 		clear(entities);
@@ -1832,6 +1873,108 @@ struct ComponentGrid : Component
 		setCellState(cell->custom.get(), row, column, state);
 		printf("jhelms spawn %p %ux%u == %ux%u\n", cell.get(), row, column, cell->row, cell->column);
 		return cell;
+	}
+
+	void setState(std::shared_ptr<ComponentCell> cell, uint32_t state)
+	{
+		cell->state = state;
+		setCellState(cell->custom.get(), cell->row, cell->column, state);
+	}
+
+	void fallLeft(std::vector<Entity>& entities)
+	{
+		for (int32_t row = 0; row < maxGridSize.y; ++row)
+		{
+			int32_t firstEmpty = -1;
+			for (int32_t column = 0; column < maxGridSize.x; ++column)
+			{
+				auto cell = grid[row][column];
+				if (cell)
+				{
+					if (firstEmpty > -1)
+					{
+						move(entities, row, column, row, firstEmpty);
+						firstEmpty = firstEmpty + 1;
+					}
+				}
+				else if (firstEmpty == -1)
+				{
+					firstEmpty = column;
+				}
+			}
+		}
+	}
+
+	void fallUp(std::vector<Entity>& entities)
+	{
+		for (int32_t column = 0; column < maxGridSize.x; ++column)
+		{
+			int32_t firstEmpty = -1;
+			for (int32_t row = 0; row < maxGridSize.y; ++row)
+			{
+				auto cell = grid[row][column];
+				if (cell)
+				{
+					if (firstEmpty > -1)
+					{
+						move(entities, row, column, firstEmpty, column);
+						firstEmpty = firstEmpty + 1;
+					}
+				}
+				else if (firstEmpty == -1)
+				{
+					firstEmpty = row;
+				}
+			}
+		}
+	}
+
+	void fallRight(std::vector<Entity>& entities)
+	{
+		for (int32_t row = 0; row < maxGridSize.y; ++row)
+		{
+			int32_t firstEmpty = -1;
+			for (int32_t column = maxGridSize.x-1; column >= 0; --column)
+			{
+				auto cell = grid[row][column];
+				if (cell)
+				{
+					if (firstEmpty > -1)
+					{
+						move(entities, row, column, row, firstEmpty);
+						firstEmpty = firstEmpty - 1;
+					}
+				}
+				else if (firstEmpty == -1)
+				{
+					firstEmpty = column;
+				}
+			}
+		}
+	}
+
+	void fallDown(std::vector<Entity>& entities)
+	{
+		for (int32_t column = 0; column < maxGridSize.x; ++column)
+		{
+			int32_t firstEmpty = -1;
+			for (int32_t row = maxGridSize.y-1; row >= 0 ; --row)
+			{
+				auto cell = grid[row][column];
+				if (cell)
+				{
+					if (firstEmpty > -1)
+					{
+						move(entities, row, column, firstEmpty, column);
+						firstEmpty = firstEmpty - 1;
+					}
+				}
+				else if (firstEmpty == -1)
+				{
+					firstEmpty = row;
+				}
+			}
+		}
 	}
 
 	void move(

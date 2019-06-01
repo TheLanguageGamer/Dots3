@@ -78,7 +78,7 @@ std::vector<Trivium> getTrivia()
 			Trivium::Year,
 			"https://en.wikipedia.org/wiki/United_States_Declaration_of_Independence",
 			"The year the United States declared independence from Britain",
-			1939),
+			1876),
 		Trivium(
 			Trivium::Year,
 			"https://en.wikipedia.org/wiki/Independence_Day_(India)",
@@ -423,6 +423,99 @@ struct TriviumComponent : RectangleComponent
 	}
 };
 
+struct Strings
+{
+	std::vector<const std::string> indexToString;
+	std::unordered_map<std::string, uint32_t> stringToIndex;
+
+	uint32_t getIndex(const std::string& form)
+	{
+		if (stringToIndex.find(form) == stringToIndex.end())
+		{
+			uint32_t index = indexToString.size();
+			indexToString.push_back(form);
+			stringToIndex[form] = index;
+		}
+		return stringToIndex[form];
+	}
+
+	const std::string& getString(uint32_t index)
+	{
+		//assert index < indexToString.size()
+		return indexToString[index];
+	}
+};
+
+struct LyricsGame : Screen
+{
+	std::shared_ptr<ComponentGrid> board;
+	Strings strings;
+
+	LyricsGame()
+	: board(nullptr)
+	{
+		rootComponent = std::shared_ptr<struct Component>(new struct Component(entities));
+		rootComponent->setRelativeSize(entities, Vector2(1.0f, 1.0f));
+
+		board = std::shared_ptr<ComponentGrid>(
+			new ComponentGrid(
+				entities,
+				Vector2Int(8, 8),
+				0.0,
+				nullptr,
+				[this]()
+				{
+					auto box = new StrokeRectangleComponent(entities, 2.0f, 0xFFFFFFFF);
+					box->setSizeMode(entities, Component::SizeMode_WidthToContents);
+
+					auto label = std::shared_ptr<struct Component>(
+						new TextComponent(entities, "TEST", 0xFFFFFFFF, 18.0f));
+					label->setSizeMode(entities, Component::SizeMode_SizeToContents);
+					label->setRelativePosition(entities, Vector2(0.0f, 0.5f));
+					label->setAnchorPoint(entities, Vector2(0.0f, 0.5f));
+					label->setOffsetPosition(entities, Vector2(4.0f, -4.0f));
+
+					box->addChild(entities, label);
+					
+					return box;
+				},
+				[this](struct Component* cell, uint32_t row, uint32_t column, uint32_t state)
+				{
+					auto box = dynamic_cast<StrokeRectangleComponent*>(cell);
+					//assert box not null
+					//box->setFillColor(entities, state); 
+					
+					auto label = std::dynamic_pointer_cast<TextComponent>(box->children[0]);
+					label->setText(entities, strings.getString(state));
+				}
+			)
+		);
+		board->setRelativeSize(entities, Vector2(1.0f, 1.0f));
+		board->setOffsetSize(entities, Vector2(0.0f, 40.0*5));
+		board->setRelativeSize(entities, Vector2(0.9, 0.0));
+		board->setRelativePosition(entities, Vector2(0.5f, 0.5f));
+		board->setAnchorPoint(entities, Vector2(0.5f, 0.5f));
+
+		std::vector<const std::string> tokens({
+			"the",
+			"fox",
+			"jumps",
+			"over",
+			"the",
+			"other",
+			"fox",
+		});
+
+		for (int32_t i = 0; i < tokens.size(); ++i)
+		{
+			uint32_t index = strings.getIndex(tokens[i]);
+			board->spawn(entities, 0, i, index);
+		}
+
+		rootComponent->addChild(entities, board);
+	}
+};
+
 struct TriviaGame : Screen
 {
 	std::vector<Trivium> trivia;
@@ -523,7 +616,7 @@ struct TriviaGame : Screen
 				valueColor.green = 0x90 + ((0xFF-0x90)*row)/board->gridSize.y;
 				//printf("setting row %d to %x\n", row, valueColor.rgba());
 				triviumComponent->valueLabel->setFillColor(entities, valueColor.rgba());
-				triviumComponent->setFillColor(entities, 0x003045FF);
+				triviumComponent->setFillColor(entities, 0x001020FF);
 				
 				cell->disableDragging();
 			}
@@ -568,6 +661,7 @@ struct TriviaGame : Screen
 				auto cell = board->spawn(entities, row, column, currentTriviaIndices[row]);
 				auto triviumComponent = std::dynamic_pointer_cast<TriviumComponent>(cell->custom);
 				triviumComponent->valueLabel->setFillColor(entities, 0x0);
+				triviumComponent->setFillColor(entities, 0x000000FF);
 				cell->enableDragging(
 					nullptr,
 					[this, cell](){
@@ -887,7 +981,7 @@ int main()
 	Game game;
 	std::shared_ptr<Screen> colorGame = std::shared_ptr<Screen>(new ColorGame());
 	std::shared_ptr<TriviaGame> triviaGame = std::shared_ptr<TriviaGame>(new TriviaGame());
-	//std::shared_ptr<TriviaGame> triviaGame = std::shared_ptr<TriviaGame>(new TriviaGame());
+	std::shared_ptr<LyricsGame> lyricsGame = std::shared_ptr<LyricsGame>(new LyricsGame());
 	game.setScreen(triviaGame);
 	bool firstLoop = true;
 	int32_t mode = 1;
@@ -908,6 +1002,11 @@ int main()
 				case 1:
 				{
 					game.setScreen(triviaGame);
+					break;
+				}
+				case 2:
+				{
+					game.setScreen(lyricsGame);
 					break;
 				}
 			}

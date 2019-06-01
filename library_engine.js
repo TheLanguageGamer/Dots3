@@ -3,7 +3,7 @@ var LibraryEngine = {
 		ctx : null,
 		IMAGE_FOLDER : "../../images/",
 		images : {},
-		mode : 1,
+		mode : 0,
 		sounds: {},
 		init: function() {
 			console.log("$Engine.init");
