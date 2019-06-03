@@ -386,6 +386,10 @@ struct Entity
 			{
 				return entity.id2 & 0xFF;
 			}
+			case Type::Text:
+			{
+				return entity.id1 & 0xFF;
+			}
 			default:
 			{
 				//assert false
@@ -393,6 +397,45 @@ struct Entity
 			}
 		}
 		return 0;
+	}
+
+	static void setFillAlpha(Entity& entity, const uint32_t alpha)
+	{
+		switch (entity.type)
+		{
+			case Type::Rectangle:
+			case Type::FillRectangle:
+			case Type::RoundedRectangle:
+			{
+				entity.id2 = (0xFFFFFF00&(entity.id2)) + alpha;
+				break;
+			}
+			case Type::Text:
+			{
+				entity.id1 = (0xFFFFFF00&(entity.id1)) + alpha;
+				break;
+			}
+			default:
+			{
+				//assert false
+				break;
+			}
+		}
+	}
+
+	static void setStrokeAlpha(Entity& entity, const uint32_t alpha)
+	{
+		
+	}
+
+	static void setAlpha(Entity& entity, const uint32_t alpha)
+	{
+		if (alpha > 0xFF)
+		{
+			printf("weird alpha: %u\n", alpha);
+		}
+		Entity::setFillAlpha(entity, alpha);
+		Entity::setStrokeAlpha(entity, alpha);
 	}
 
 	static void setPosition(Entity& entity, const Vector2& position)
@@ -449,7 +492,17 @@ struct Entity
 struct Movement
 {
 	bool isComplete = false;
+	bool isDisabled = false;
+	std::function<void()> onComplete = nullptr;
 	virtual void onStep(std::vector<Entity>& entity, float timeDelta) {}
+	void doComplete()
+	{
+		isDisabled = true;
+		if (onComplete)
+		{
+			onComplete();
+		}
+	}
 };
 
 struct Component
@@ -472,6 +525,7 @@ struct Component
 	Vector2 anchorPoint;
 	Vector2 screenPosition;
 	Vector2 screenSize;
+	uint32_t alpha;
 	Vector2 cachedParentSize;
 	Vector2 cachedParentPosition;
 	float aspectRatio;
@@ -490,6 +544,12 @@ struct Component
 	std::function<void()> onDeselect;
 	std::function<void(const Vector2&)> onClick;
 
+	bool isDrawable;
+	bool isDrawing;
+	std::function<void(const Vector2&)> onDrawingBegan;
+	std::function<void(const Vector2&)> onDrawingMoved;
+	std::function<void(const Vector2&)> onDrawingEnded;
+
 	std::shared_ptr<Movement> movement;
 
 	std::vector<std::shared_ptr<Component>> children;
@@ -503,6 +563,8 @@ struct Component
 	, isDragging(false)
 	, isClickable(false)
 	, isSelected(false)
+	, isDrawable(false)
+	, alpha(0xFF)
 	{
 		_startIndex = entities.size();
 		entities.push_back(Entity::component(_startIndex));
@@ -545,6 +607,21 @@ struct Component
 		return entities[_startIndex].id2;
 	}
 
+	uint32_t getAlpha(std::vector<Entity>& entities)
+	{
+		return alpha;
+	}
+
+	void setAlpha(std::vector<Entity>& entities, uint32_t inAlpha)
+	{
+		alpha = inAlpha;
+		uint32_t endIndex = getEndIndex(entities);
+		for (uint32_t i = _startIndex; i <= endIndex; ++i)
+		{
+			Entity::setAlpha(entities[i], alpha);
+		}
+	}
+
 	void setStartIndex(std::vector<Entity>& entities, uint32_t startIndex)
 	{
 		_startIndex = startIndex;
@@ -582,6 +659,7 @@ struct Component
 	{
 		isDragging = false;
 		isSelected = false;
+		isDrawing = false;
 		movement = nullptr;
 		entities[_startIndex].id3 = 0;
 	}
@@ -644,6 +722,7 @@ struct Component
 
 	void relayout(std::vector<Entity>& entities)
 	{
+		const Vector2& relativeSize = getRelativeSize(entities);
 		doLayout(entities, cachedParentPosition, cachedParentSize);
 	}
 
@@ -720,7 +799,8 @@ struct Component
 
 		float newX = parentPosition.x + (parentSize.x)*relativePosition.x - anchorPoint.x*screenSize.x + offsetPosition.x;
 		float newY = parentPosition.y + (parentSize.y)*relativePosition.y - anchorPoint.y*screenSize.y + offsetPosition.y;
-		//printf("jhelms doLayoutCommon %4.2f, %4.2f, %4.2f, %4.2f, %4.2f\n", newX, parentPosition.x, relativePosition.x, screenSize.x, offsetSize.x);
+		// printf("jhelms doLayoutCommon %4.2f, %4.2f, %4.2f, %4.2f, %4.2f\n",
+		// 	newX, parentPosition.x, relativeSize.x, screenSize.x, offsetSize.x);
 		screenPosition = Vector2(newX, newY);
 
 		// applySizeMode();
@@ -793,13 +873,17 @@ struct Component
 			return;
 		}
 		
-		if (movement)
+		if (movement && !movement->isDisabled)
 		{
 			bool wasComplete = movement->isComplete;
 			movement->onStep(entities, timeDelta);
 			if (!wasComplete)
 			{
 				relayout(entities);
+			}
+			else
+			{
+				movement->doComplete();
 			}
 		}
 
@@ -857,7 +941,21 @@ struct Component
 		isClickable = true;
 	}
 
-	bool onMouseMove(std::vector<Entity>& entities, const Vector2& position, const Vector2& delta)
+	void enableDrawing(
+		std::function<void(const Vector2&)> inOnDrawingBegan,
+		std::function<void(const Vector2&)> inOnDrawingMoved,
+		std::function<void(const Vector2&)> inOnDrawingEnded)
+	{
+		onDrawingBegan = inOnDrawingBegan;
+		onDrawingMoved = inOnDrawingMoved;
+		onDrawingEnded = inOnDrawingEnded;
+		isDrawable = true;
+	}
+
+	bool onMouseMove(
+		std::vector<Entity>& entities,
+		const Vector2& position,
+		const Vector2& delta)
 	{
 		if (!isEnabled(entities))
 		{
@@ -866,6 +964,15 @@ struct Component
 		if (isDragging)
 		{
 			onDrag(entities, delta);
+			return true;
+		}
+		if (isDrawing)
+		{
+			if (onDrawingMoved)
+			{
+				onDrawingMoved(position);
+				return true;
+			}
 		}
 
 		for (int32_t i = children.size()-1; i >= 0; --i)
@@ -894,7 +1001,20 @@ struct Component
 			}
 		}
 
-		if (isClickable && doesPointIntersectRect(position, screenPosition, screenSize))
+		if (isDrawable
+			&& doesPointIntersectRect(position, screenPosition, screenSize))
+		{
+			printf("onMouseButton1Down\n");
+			isDrawing = true;
+			if (onDrawingBegan)
+			{
+				onDrawingBegan(position);
+			}
+			return true;
+		}
+
+		if (isClickable
+			&& doesPointIntersectRect(position, screenPosition, screenSize))
 		{
 			isSelected = true;
 			if (onSelect)
@@ -904,7 +1024,8 @@ struct Component
 			return true;
 		}
 
-		if (isDraggable && doesPointIntersectRect(position, screenPosition, screenSize))
+		if (isDraggable
+			&& doesPointIntersectRect(position, screenPosition, screenSize))
 		{
 			printf("made draggable %p\n", this);
 			if (onDraggingStarted)
@@ -943,6 +1064,15 @@ struct Component
 				onDraggingStopped();
 			}
 			isDragging = false;
+			return true;
+		}
+		if (isDrawable && isDrawing)
+		{
+			if (onDrawingEnded)
+			{
+				onDrawingEnded(position);
+			}
+			isDrawing = false;
 			return true;
 		}
 
@@ -1029,6 +1159,221 @@ struct SequentialMovement : Movement
 			}
 		}
 	}
+};
+
+struct SpringState1
+{
+	bool isComplete = false;
+	double stiffness = 1000.0f;
+	double damping = 100.0f;
+	double precision = 0.01f;
+	double velocity = 0.0f;
+	float destination = 0.0f;
+
+	const float step(double deltaTime, const float current)
+	{
+		deltaTime /= 1000.0f;
+		const double displacement = current - destination;
+
+		const double springForce = -stiffness * displacement;
+		const double dampForce = velocity * -damping;
+
+		const double acceleration = springForce + dampForce;
+		const double newVelocity = velocity + acceleration * deltaTime;
+		const double newPosition = current + velocity * deltaTime;
+
+		if (newPosition > 1.0f || newPosition < 0.0f || current < 0.0f || current > 1.0f)
+		{
+			printf("bad position: %4.2f, %4.2f, %4.2f, %4.2f\n",
+				newPosition, current, velocity, deltaTime);
+		}
+
+		if (fabs(newPosition-destination) < precision
+			&& fabs(newVelocity) < precision
+			&& deltaTime > 0.0f)
+		{
+			velocity = 0.0f;
+			isComplete = true;
+			return destination;
+		}
+		else
+		{
+			velocity = newVelocity;
+			return newPosition;
+		}
+	}
+};
+
+struct SpringState2
+{
+	bool isComplete = false;
+	float stiffness = 1000.0f;
+	float damping = 100.0f;
+	float precision = 0.001f;
+	Vector2 velocity;
+	Vector2 destination;
+
+	const Vector2 step(float deltaTime, const Vector2& current)
+	{
+		deltaTime /= 1000.0f;
+		const Vector2 displacement = current - destination;
+
+		const Vector2 springForce = -stiffness * displacement;
+		const Vector2 dampForce = velocity * -damping;
+
+		const Vector2 acceleration = springForce + dampForce;
+		const Vector2 newVelocity = velocity + acceleration * deltaTime;
+		const Vector2 newPosition = current + velocity * deltaTime;
+
+		if (fabs(newPosition.x-destination.x) < precision
+			&& fabs(newPosition.y-destination.y) < precision
+			&& fabs(newVelocity.x) < precision
+			&& fabs(newVelocity.y) < precision
+			&& deltaTime > 0.0f)
+		{
+			velocity = Vector2();
+			isComplete = true;
+			return destination;
+		}
+		else
+		{
+			velocity = newVelocity;
+			return newPosition;
+		}
+	}
+};
+
+struct PropertyAnimation : Movement
+{
+	static const uint16_t RELATIVE_POSITION = 1;
+	static const uint16_t RELATIVE_SIZE = 2;
+	static const uint16_t OFFSET_POSITION = 4;
+	static const uint16_t OFFSET_SIZE = 8;
+	static const uint16_t ANCHOR_POINT = 16;
+	static const uint16_t ALPHA = 32;
+
+	bool disableOnComplete = false;
+
+	PropertyAnimation(std::shared_ptr<struct Component> component)
+	: component(component) {}
+
+	void setRelativePosition(const Vector2& value)
+	{
+		relativePosition.destination = value;
+		relativePosition.isComplete = false;
+		animatingProperties |= RELATIVE_POSITION;
+	}
+	void setRelativeSize(const Vector2& value)
+	{
+		relativeSize.destination = value;
+		relativeSize.isComplete = false;
+		animatingProperties |= RELATIVE_SIZE;
+	}
+	void setOffsetPosition(const Vector2& value)
+	{
+		offsetSize.destination = value;
+		offsetSize.isComplete = false;
+		animatingProperties |= OFFSET_SIZE;
+	}
+	void setOffsetSize(const Vector2& value)
+	{
+		offsetPosition.destination = value;
+		offsetPosition.isComplete = false;
+		animatingProperties |= OFFSET_POSITION;
+	}
+	void setAnchorPoint(const Vector2& value)
+	{
+		anchorPoint.destination = value;
+		anchorPoint.isComplete = false;
+		animatingProperties |= ANCHOR_POINT;
+	}
+	void setAlpha(float value)
+	{
+		alpha.destination = value;
+		alpha.isComplete = false;
+		animatingProperties |= ALPHA;
+	}
+
+	void onStep(std::vector<Entity>& entities, float deltaTime) override
+	{
+		if ((animatingProperties & RELATIVE_POSITION) == RELATIVE_POSITION)
+		{
+			const Vector2 current = component->getRelativePosition(entities);
+			Vector2 newValue = relativePosition.step(deltaTime, current);
+			component->setRelativePosition(entities, newValue);
+			if (relativePosition.isComplete)
+			{
+				animatingProperties &= ~RELATIVE_POSITION;
+			}
+		}
+		if ((animatingProperties & RELATIVE_SIZE) == RELATIVE_SIZE)
+		{
+			const Vector2 current = component->getRelativeSize(entities);
+			Vector2 newValue = relativeSize.step(deltaTime, current);
+			component->setRelativeSize(entities, newValue);
+			if (relativeSize.isComplete)
+			{
+				animatingProperties &= ~RELATIVE_SIZE;
+			}
+		}
+		if ((animatingProperties & OFFSET_POSITION) == OFFSET_POSITION)
+		{
+			const Vector2 current = component->getOffsetPosition(entities);
+			Vector2 newValue = offsetPosition.step(deltaTime, current);
+			component->setOffsetPosition(entities, newValue);
+			if (offsetPosition.isComplete)
+			{
+				animatingProperties &= ~OFFSET_POSITION;
+			}
+		}
+		if ((animatingProperties & OFFSET_SIZE) == OFFSET_SIZE)
+		{
+			const Vector2 current = component->getOffsetSize(entities);
+			Vector2 newValue = offsetSize.step(deltaTime, current);
+			component->setOffsetSize(entities, newValue);
+			if (offsetSize.isComplete)
+			{
+				animatingProperties &= ~OFFSET_SIZE;
+			}
+		}
+		if ((animatingProperties & ANCHOR_POINT) == ANCHOR_POINT)
+		{
+			const Vector2 current = component->getAnchorPoint(entities);
+			Vector2 newValue = anchorPoint.step(deltaTime, current);
+			component->setAnchorPoint(entities, newValue);
+			if (anchorPoint.isComplete)
+			{
+				animatingProperties &= ~ANCHOR_POINT;
+			}
+		}
+		if ((animatingProperties & ALPHA) == ALPHA)
+		{
+			const float current = ((float)component->getAlpha(entities))/(float)0xFF;
+			float newValue = alpha.step(deltaTime, current);
+			newValue = newValue > 1.0 ? 1.0 : (newValue < 0.0 ? 0.0 : newValue);
+			component->setAlpha(entities, newValue*0xFF);
+			if (alpha.isComplete)
+			{
+				animatingProperties &= ~ALPHA;
+			}
+		}
+		bool wasComplete = isComplete;
+		isComplete = animatingProperties == 0;
+		if (isComplete && !wasComplete)
+		{
+			component->disable(entities);
+		}
+	}
+
+private:
+	std::shared_ptr<struct Component> component;
+	uint16_t animatingProperties = 0;
+	SpringState2 relativePosition;
+	SpringState2 relativeSize;
+	SpringState2 offsetPosition;
+	SpringState2 offsetSize;
+	SpringState2 anchorPoint;
+	SpringState1 alpha;
 };
 
 struct SpringAnimation : Movement
@@ -1247,6 +1592,11 @@ struct RoundedRectangleComponent : DrawComponent
 		entities[getStartIndex(entities)+1].id2 = rgba;
 	}
 
+	uint32_t getFillColor(std::vector<Entity>& entities)
+	{
+		return entities[getStartIndex(entities)+1].id2;
+	}
+
 	void doLayoutEntities(
 		std::vector<Entity>& entities,
 		const Vector2& oldScreenPosition,
@@ -1318,7 +1668,6 @@ struct StrokeRectangleComponent : DrawComponent
 	StrokeRectangleComponent(std::vector<Entity>& entities, float strokeWidth, uint32_t rgba)
 	: DrawComponent(entities)
 	{
-		printf("jhelms %x\n", rgba);
 		addEntity(entities, Entity::strokeRectangle(Vector2(), Vector2(), strokeWidth, rgba));
 	}
 
@@ -1360,7 +1709,6 @@ struct RectangleComponent : DrawComponent
 	RectangleComponent(std::vector<Entity>& entities, float strokeWidth, uint32_t stroke, uint32_t fill)
 	: DrawComponent(entities)
 	{
-		printf("jhelms %x - %x\n", stroke, fill);
 		addEntity(entities, Entity::rectangle(Vector2(), Vector2(), strokeWidth, stroke, fill));
 	}
 
@@ -1616,6 +1964,7 @@ struct ComponentCell : Component
 	uint32_t row;
 	uint32_t column;
 	uint32_t state;
+	bool selected;
 
 	std::shared_ptr<struct Component> custom;
 
@@ -1623,7 +1972,13 @@ struct ComponentCell : Component
 	: row(0)
 	, column(0)
 	, state(0)
+	, selected(false)
 	, Component(entities) {}
+
+	~ComponentCell()
+	{
+		printf("~ComponentCell\n");
+	}
 };
 
 struct ComponentGrid : Component
@@ -1647,6 +2002,7 @@ struct ComponentGrid : Component
 	float paddingPercent;
 	Vector2 cellRelativeSize;
 	Vector2 paddingRelativeSize;
+	bool staggered;
 
 	ComponentGrid(
 		std::vector<Entity>& entities,
@@ -1662,6 +2018,7 @@ struct ComponentGrid : Component
 	, createBGCell(createBGCell)
 	, createFGCell(createFGCell)
 	, setCellState(setCellState)
+	, staggered(false)
 	, Component(entities)
 	{
 		cellRelativeSize = Vector2((1.0 - paddingPercent)/gridSize.x, (1.0 - paddingPercent)/gridSize.y);
@@ -1797,6 +2154,43 @@ struct ComponentGrid : Component
 		}
 	}
 
+	bool areAdjacent(
+		uint32_t row1, uint32_t column1,
+		uint32_t row2, uint32_t column2)
+	{
+		if (row2 == row1
+			&& (column2 == column1-1
+			    || column2 == column1+1))
+		{
+			return true;
+		}
+
+		if (column2 == column1
+			&& (row2 == row1-1
+				|| row2 == row1+1))
+		{
+			return true;
+		}
+
+		if ((!staggered || (row1%2 == 1))
+			&& column2 == column1+1
+			&& (row2 == row1-1
+				|| row2 == row1+1))
+		{
+			return true;
+		}
+
+		if ((!staggered || (row1%2 == 0))
+			&& column2 == column1-1
+			&& (row2 == row1-1
+				|| row2 == row1+1))
+		{
+			return true;
+		}
+
+		return false;
+	}
+
 	void clear(std::vector<Entity>& entities)
 	{
 		for (int32_t row = 0; row < maxGridSize.y; ++row)
@@ -1871,7 +2265,7 @@ struct ComponentGrid : Component
 		layoutCell(entities, cell, row, column);
 		grid[row][column] = cell;
 		setCellState(cell->custom.get(), row, column, state);
-		printf("jhelms spawn %p %ux%u == %ux%u\n", cell.get(), row, column, cell->row, cell->column);
+		//printf("jhelms spawn %p %ux%u == %ux%u\n", cell.get(), row, column, cell->row, cell->column);
 		return cell;
 	}
 
@@ -2099,7 +2493,7 @@ struct ComponentGrid : Component
 			for (int32_t column = 0; column < gridSize.x; ++column)
 			{
 				auto otherCell = grid[row][column];
-				if (!otherCell)
+				if (!otherCell || otherCell->selected)
 				{
 					continue;
 				}
