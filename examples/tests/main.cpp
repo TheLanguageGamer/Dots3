@@ -6,7 +6,7 @@ struct TestPrimitives : Screen
 	{
 		printf("initializing TestPrimitives\n");
 		entities.push_back(Entity::fillCircle(Vector2(50.0f, 50.0f), 30.0f, 0xFF88AAFF));
-		entities.push_back(Entity::rectangle(Vector2(150.0f, 50.0f), Vector2(40.0f, 80.0f), 0xBB88FFFF));
+		entities.push_back(Entity::fillRectangle(Vector2(150.0f, 50.0f), Vector2(40.0f, 80.0f), 0xBB88FFFF));
 		//entities.push_back(Entity::fillCircle(Vector2(50.0f, 150.0f), 2.0f, 0x999999FF));
 		for (int32_t i = 1; i <= 5; ++i)
 		{
@@ -17,7 +17,7 @@ struct TestPrimitives : Screen
 				0xFFFFFFFF
 			);
 			printf("rectangle size: %4.2f x %4.2f\n", textEntity.coord3.x, textEntity.coord3.y);
-			entities.push_back(Entity::rectangle(
+			entities.push_back(Entity::fillRectangle(
 				textEntity.coord1,
 				textEntity.coord3,
 				0xBB88FFFF
@@ -399,9 +399,9 @@ struct TestPooling : Screen
 			5,
 			rootComponent.get(),
 			[this](){
-				return new CustomButton(entities, [this](const Vector2&, CustomButton* button){
+				return std::shared_ptr<CustomButton>(new CustomButton(entities, [this](const Vector2&, CustomButton* button){
 					button->disable(entities);
-				});
+				}));
 			}
 		));
 
