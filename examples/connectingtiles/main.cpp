@@ -53,17 +53,6 @@ struct ConnectingTiles : Screen
 				Vector2Int(8, 5),
 				0.20,
 				nullptr,
-				// [this]()
-				// {
-				// 	auto container =  new RoundedRectangleComponent(
-				// 		entities,
-				// 		5.0f,
-				// 		0.0f,
-				// 		0x0,
-				// 		0x0000FFFF
-				// 	);
-				// 	return container;
-				// },
 				[this]()
 				{
 					auto component = new Tile(entities);
@@ -79,7 +68,7 @@ struct ConnectingTiles : Screen
 					sprintf(buff, "%u", state);
 					//auto label = std::dynamic_pointer_cast<TextComponent>(component->children[0]);
 					tile->label->setText(entities, buff);
-					printf("jhelms setting state %u -> %s\n", state, buff);
+					//printf("jhelms setting state %u -> %s\n", state, buff);
 
 				}
 			)
@@ -108,6 +97,7 @@ struct ConnectingTiles : Screen
 
 	void fillErUp()
 	{
+		std::uniform_real_distribution<> dist(-500, 500);
 		for (int32_t row = 0; row < board->gridSize.y; ++row)
 		{
 			for (int32_t column = 0; column < board->gridSize.x; ++column)
@@ -116,8 +106,13 @@ struct ConnectingTiles : Screen
 				{
 					continue;
 				}
+				float offset = dist(rng);
 				auto cell = board->spawn(entities, row, column, row*column+column);
+				cell->setOffsetPosition(entities, Vector2(0.0, -1000.0+offset));
 				cell->setAlpha(entities, 0xFF);
+				auto animation = std::dynamic_pointer_cast<PropertyAnimation>(cell->movement);
+				animation->setOffsetPosition(Vector2(0.0f, 0.0f));
+				animation->disableOnComplete = false;
 			}
 		}
 		board->relayout(entities);
@@ -143,6 +138,10 @@ struct ConnectingTiles : Screen
 				{
 					continue;
 				}
+				// if (cell->movement && !cell->movement->isComplete)
+				// {
+				// 	return;
+				// }
 				board->swapToTop(entities, cell);
 				cell->selected = true;
 				auto tile = std::dynamic_pointer_cast<Tile>(cell->custom);
@@ -254,36 +253,14 @@ struct ConnectingTiles : Screen
 			uint32_t column = coordinate.x;
 			auto cell = board->grid[row][column];
 			cell->selected = false;
-			// auto animation = std::shared_ptr<SpringAnimation>(new SpringAnimation(
-			// 	cell->custom,
-			// 	SpringAnimation::RelativeSize,
-			// 	Vector2(2.0f, 2.0f),
-			// 	1000.0f,
-			// 	100.0f,
-			// 	0.001f
-			// ));
-			auto animation = std::shared_ptr<PropertyAnimation>(new PropertyAnimation(cell));
+			
+			auto animation = std::dynamic_pointer_cast<PropertyAnimation>(cell->movement);
 			const Vector2 relativeSize = cell->getRelativeSize(entities);
 			animation->setRelativeSize(Vector2(relativeSize.x*2.0, relativeSize.y*2.0));
 			animation->setAlpha(0.0f);
 			animation->disableOnComplete = true;
-			//ComponentCell* cellRaw = cell.get();
+			//cell->disable(entities);
 
-			// animation->onComplete = [this, cellRaw]()
-			// {
-			// 	uint32_t bgStartIndex = background->getStartIndex(entities);
-			// 	uint32_t cellStartIndex = cellRaw->getStartIndex(entities);
-			// 	uint32_t bgEndIndex = background->getEndIndex(entities);
-			// 	uint32_t cellEndIndex = cellRaw->getEndIndex(entities);
-			// 	printf("cell(%p), cell->custom(%p) %ux%u => %ux%u\n", cellRaw, cellRaw->custom.get(),
-			// 		background->_startIndex, bgEndIndex, cellRaw->_startIndex, cellEndIndex);
-			// 	cellRaw->disable(entities);
-			// 	cellRaw->setAlpha(entities, 0xFF);
-			// 	auto tile = std::dynamic_pointer_cast<Tile>(cellRaw->custom);
-			// 	// uint32_t color = tile->getFillColor(entities);
-			// 	// printf("fill color: %u\n", color);
-			// };
-			cell->movement = animation;
 			board->grid[row][column] = nullptr;
 		}
 		selected.clear();

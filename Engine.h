@@ -660,7 +660,6 @@ struct Component
 		isDragging = false;
 		isSelected = false;
 		isDrawing = false;
-		movement = nullptr;
 		entities[_startIndex].id3 = 0;
 	}
 
@@ -1163,9 +1162,9 @@ struct SequentialMovement : Movement
 
 struct SpringState1
 {
-	bool isComplete = false;
-	double stiffness = 1000.0f;
-	double damping = 100.0f;
+	bool isComplete = true;
+	double dampingRatio = 1.0f;
+	double frequency = 3.0f*M_PI*2.0;
 	double precision = 0.01f;
 	double velocity = 0.0f;
 	float destination = 0.0f;
@@ -1175,12 +1174,10 @@ struct SpringState1
 		deltaTime /= 1000.0f;
 		const double displacement = current - destination;
 
-		const double springForce = -stiffness * displacement;
-		const double dampForce = velocity * -damping;
-
-		const double acceleration = springForce + dampForce;
-		const double newVelocity = velocity + acceleration * deltaTime;
-		const double newPosition = current + velocity * deltaTime;
+		//TODO: support under and over damped
+		const double decay = exp(-deltaTime*dampingRatio*frequency);
+		const float newPosition = (velocity*deltaTime + displacement*(frequency*deltaTime + 1))*decay + destination;
+		const double newVelocity = (velocity - frequency*deltaTime*(displacement*frequency + velocity))*decay;
 
 		if (newPosition > 1.0f || newPosition < 0.0f || current < 0.0f || current > 1.0f)
 		{
@@ -1206,10 +1203,10 @@ struct SpringState1
 
 struct SpringState2
 {
-	bool isComplete = false;
-	float stiffness = 1000.0f;
-	float damping = 100.0f;
+	bool isComplete = true;
 	float precision = 0.001f;
+	double dampingRatio = 1.0f;
+	double frequency = 3.0f*M_PI*2.0;
 	Vector2 velocity;
 	Vector2 destination;
 
@@ -1218,12 +1215,10 @@ struct SpringState2
 		deltaTime /= 1000.0f;
 		const Vector2 displacement = current - destination;
 
-		const Vector2 springForce = -stiffness * displacement;
-		const Vector2 dampForce = velocity * -damping;
-
-		const Vector2 acceleration = springForce + dampForce;
-		const Vector2 newVelocity = velocity + acceleration * deltaTime;
-		const Vector2 newPosition = current + velocity * deltaTime;
+		//TODO: support under and over damped
+		const double decay = exp(-deltaTime*dampingRatio*frequency);
+		const Vector2 newPosition = (velocity*deltaTime + displacement*(frequency*deltaTime + 1))*decay + destination;
+		const Vector2 newVelocity = (velocity - frequency*deltaTime*(displacement*frequency + velocity))*decay;
 
 		if (fabs(newPosition.x-destination.x) < precision
 			&& fabs(newPosition.y-destination.y) < precision
@@ -1261,36 +1256,48 @@ struct PropertyAnimation : Movement
 	{
 		relativePosition.destination = value;
 		relativePosition.isComplete = false;
+		isDisabled = false;
+		isComplete = false;
 		animatingProperties |= RELATIVE_POSITION;
 	}
 	void setRelativeSize(const Vector2& value)
 	{
 		relativeSize.destination = value;
 		relativeSize.isComplete = false;
+		isDisabled = false;
+		isComplete = false;
 		animatingProperties |= RELATIVE_SIZE;
 	}
 	void setOffsetPosition(const Vector2& value)
 	{
-		offsetSize.destination = value;
-		offsetSize.isComplete = false;
-		animatingProperties |= OFFSET_SIZE;
+		offsetPosition.destination = value;
+		offsetPosition.isComplete = false;
+		isDisabled = false;
+		isComplete = false;
+		animatingProperties |= OFFSET_POSITION;
 	}
 	void setOffsetSize(const Vector2& value)
 	{
-		offsetPosition.destination = value;
-		offsetPosition.isComplete = false;
-		animatingProperties |= OFFSET_POSITION;
+		offsetSize.destination = value;
+		offsetSize.isComplete = false;
+		isDisabled = false;
+		isComplete = false;
+		animatingProperties |= OFFSET_SIZE;
 	}
 	void setAnchorPoint(const Vector2& value)
 	{
 		anchorPoint.destination = value;
 		anchorPoint.isComplete = false;
+		isDisabled = false;
+		isComplete = false;
 		animatingProperties |= ANCHOR_POINT;
 	}
 	void setAlpha(float value)
 	{
 		alpha.destination = value;
 		alpha.isComplete = false;
+		isDisabled = false;
+		isComplete = false;
 		animatingProperties |= ALPHA;
 	}
 
@@ -1321,6 +1328,7 @@ struct PropertyAnimation : Movement
 			const Vector2 current = component->getOffsetPosition(entities);
 			Vector2 newValue = offsetPosition.step(deltaTime, current);
 			component->setOffsetPosition(entities, newValue);
+			//printf("new offset position: %4.2fx%4.2f\n", newValue.x, newValue.y);
 			if (offsetPosition.isComplete)
 			{
 				animatingProperties &= ~OFFSET_POSITION;
@@ -1359,7 +1367,7 @@ struct PropertyAnimation : Movement
 		}
 		bool wasComplete = isComplete;
 		isComplete = animatingProperties == 0;
-		if (isComplete && !wasComplete)
+		if (isComplete && !wasComplete && disableOnComplete)
 		{
 			component->disable(entities);
 		}
@@ -1478,12 +1486,12 @@ struct FixedCapacityPool
 		std::vector<Entity>& entities,
 		uint32_t capacity,
 		struct Component* parent,
-		std::function<struct Component*()> initialize)
+		std::function<std::shared_ptr<struct Component>()> initialize)
 	{
 		for (int32_t i = 0; i < capacity; ++i)
 		{
 			//printf("jhelms spawning %d\n", i);
-			auto component = std::shared_ptr<struct Component>(initialize());
+			auto component = initialize();
 			component->disable(entities);
 			pool.push_back(component);
 			parent->addChild(entities, component);
@@ -2048,8 +2056,10 @@ struct ComponentGrid : Component
 			this,
 			[&entities, createFGCell](){
 
-				ComponentCell* cell = new ComponentCell(entities);
-				
+				auto cell = std::shared_ptr<ComponentCell>(new ComponentCell(entities));
+				auto animation = std::shared_ptr<PropertyAnimation>(new PropertyAnimation(cell));
+				cell->movement = animation;
+
 				std::shared_ptr<struct Component> child = nullptr;
 				child.reset(createFGCell());
 				child->setRelativeSize(entities, Vector2(1.0, 1.0));
@@ -2386,15 +2396,11 @@ struct ComponentGrid : Component
 		cell->column = column2;
 		grid[row2][column2] = cell;
 		grid[row1][column1] = nullptr;
-		auto animation = std::shared_ptr<SpringAnimation>(new SpringAnimation(
-			cell,
-			SpringAnimation::RelativePosition,
-			getPosition(entities, row2, column2),
-			1000.0f,
-			100.0f,
-			0.001f
-		));
-		cell->movement = animation;
+
+		auto animation = std::dynamic_pointer_cast<PropertyAnimation>(cell->movement);
+		//printf("animation? %p %p\n", animation.get(), cell->movement.get());
+		animation->setRelativePosition(getPosition(entities, row2, column2));
+		//cell->setRelativePosition(entities, getPosition(entities, row2, column2));
 	}
 
 	void validateConsistency()
