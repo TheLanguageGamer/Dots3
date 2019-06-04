@@ -1,36 +1,61 @@
 #include "Engine.h"
+#include "words2.h"
+#include <set>
 #include <random>
 
 std::random_device rd;
 std::mt19937 rng(rd()); 
 
+enum GameMode
+{
+	GameMode_Color,
+	GameMode_Spelling,
+};
+
 struct Tile : RoundedRectangleComponent
 {
 	std::shared_ptr<TextComponent> label;
 
-	Tile(std::vector<Entity>& entities)
-	: RoundedRectangleComponent(entities, 5.0, 0.0, 0x0, 0x226699FF)
+	Tile(std::vector<Entity>& entities, GameMode mode)
+	: RoundedRectangleComponent(entities, 5.0, 3.0, 0xFFFFFF00, 0x226699FF)
 	{
-		label = std::shared_ptr<TextComponent>(
-			new TextComponent(entities, "2", 0xFFFFFFFF, 18.0f));
-		label->setRelativePosition(entities, Vector2(0.5f, 0.3f));
-		label->setAnchorPoint(entities, Vector2(0.5f, 0.5f));
-		label->setRelativeSize(entities, Vector2(0.7, 1.0));
+		if (mode == GameMode_Spelling)
+		{		
+			label = std::shared_ptr<TextComponent>(
+				new TextComponent(entities, "A", 0xFFFFFF00, 18.0f));
+			label->setRelativePosition(entities, Vector2(0.5f, 0.3f));
+			label->setAnchorPoint(entities, Vector2(0.5f, 0.5f));
+			label->setRelativeSize(entities, Vector2(0.7, 1.0));
 
-		addChild(entities, label);
+			addChild(entities, label);
+		}
 	}
 };
 
+struct Configuration
+{
+	std::function<void(std::shared_ptr<ComponentCell> cell)> stateWasSet;
+	std::function<void(std::shared_ptr<ComponentCell> cell)> didSelect;
+	std::function<bool(std::shared_ptr<ComponentCell> cell)> canSelect;
+};
+
+// std::shared_ptr<Configuration> createColorConfiguration()
+// {
+// 	auto configuration = std::shared_ptr<Configuration>(new Configuration());
+// }
+
 struct ConnectingTiles : Screen
 {
+	GameMode mode;
 	std::shared_ptr<FilledRectangleComponent> background;
 	std::shared_ptr<ComponentGrid> board;
-	std::vector<Vector2Int> selected;
+	std::vector<std::shared_ptr<ComponentCell>> selected;
 	uint32_t selectedState;
 
-	ConnectingTiles()
+	ConnectingTiles(GameMode mode)
 	: board(nullptr)
 	, selectedState(0)
+	, mode(mode)
 	{
 		rootComponent = std::shared_ptr<struct Component>(new struct Component(entities));
 		rootComponent->setRelativeSize(entities, Vector2(1.0f, 1.0f));
@@ -53,24 +78,24 @@ struct ConnectingTiles : Screen
 				Vector2Int(8, 5),
 				0.20,
 				nullptr,
-				[this]()
+				[this, mode]()
 				{
-					auto component = new Tile(entities);
+					auto component = new Tile(entities, mode);
 					component->setRelativePosition(entities, Vector2(0.5, 0.5));
 					component->setAnchorPoint(entities, Vector2(0.5, 0.5));
 					return component;
 				},
-				[this](struct Component* cell, uint32_t row, uint32_t column, uint32_t state)
-				{
-					auto tile = dynamic_cast<Tile*>(cell);
-					tile->setFillColor(entities, 0x226699FF);
-					char buff[16];
-					sprintf(buff, "%u", state);
-					//auto label = std::dynamic_pointer_cast<TextComponent>(component->children[0]);
-					tile->label->setText(entities, buff);
-					//printf("jhelms setting state %u -> %s\n", state, buff);
+				nullptr
+				// [this](struct Component* cell, uint32_t row, uint32_t column, uint32_t state)
+				// {
+				// 	deselect(row, column);
+				// 	auto tile = dynamic_cast<Tile*>(cell);
 
-				}
+				// 	char buff[16];
+				// 	sprintf(buff, "%u", state);
+				// 	tile->label->setText(entities, buff);
+
+				// }
 			)
 		);
 		board->setRelativeSize(entities, Vector2(1.0f, 1.0f));
@@ -95,9 +120,55 @@ struct ConnectingTiles : Screen
 		fillErUp();
 	}
 
+	uint32_t chooseState(uint32_t row, uint32_t column)
+	{
+		switch (mode)
+		{
+			case GameMode_Color:
+			{
+				static const std::vector<const uint32_t> colors({
+					0xFF0000FF,
+					0x00FF00FF,
+					0x0000FFFF,
+				});
+				static std::uniform_int_distribution<uint32_t> dist(0, colors.size()-1);
+				uint32_t index = dist(rng);
+
+				return colors[index];
+			}
+			case GameMode_Spelling:
+			{
+				static std::uniform_int_distribution<uint32_t> dist(0, 25);
+				return dist(rng);
+			}
+		}
+	}
+
+	void didSetState(std::shared_ptr<ComponentCell> cell)
+	{
+		switch (mode)
+		{
+			case GameMode_Color:
+			{
+				auto tile = std::dynamic_pointer_cast<Tile>(cell->custom);
+				tile->setFillColor(entities, cell->state);
+				break;
+			}
+			case GameMode_Spelling:
+			{
+				auto tile = std::dynamic_pointer_cast<Tile>(cell->custom);
+				tile->setFillColor(entities, 0x226699FF);
+				char buff[16];
+				sprintf(buff, "%c", 'A' + (char)cell->state);
+				tile->label->setText(entities, buff);
+				break;
+			}
+		}
+	}
+
 	void fillErUp()
 	{
-		std::uniform_real_distribution<> dist(-500, 500);
+		static std::uniform_real_distribution<> dist(-500, 500);
 		for (int32_t row = 0; row < board->gridSize.y; ++row)
 		{
 			for (int32_t column = 0; column < board->gridSize.x; ++column)
@@ -107,7 +178,10 @@ struct ConnectingTiles : Screen
 					continue;
 				}
 				float offset = dist(rng);
-				auto cell = board->spawn(entities, row, column, row*column+column);
+				uint32_t state = chooseState(row, column);
+				auto cell = board->spawn(entities, row, column, state);
+				deselect(row, column);
+				didSetState(cell);
 				cell->setOffsetPosition(entities, Vector2(0.0, -1000.0+offset));
 				cell->setAlpha(entities, 0xFF);
 				auto animation = std::dynamic_pointer_cast<PropertyAnimation>(cell->movement);
@@ -142,11 +216,12 @@ struct ConnectingTiles : Screen
 				// {
 				// 	return;
 				// }
-				board->swapToTop(entities, cell);
-				cell->selected = true;
-				auto tile = std::dynamic_pointer_cast<Tile>(cell->custom);
-				tile->setFillColor(entities, 0x229955FF);
-				selected.push_back(Vector2Int(column, row));
+				// board->swapToTop(entities, cell);
+				// cell->selected = true;
+				// auto tile = std::dynamic_pointer_cast<Tile>(cell->custom);
+				// tile->setFillColor(entities, 0x229955FF);
+				select(row, column);
+				selected.push_back(cell);
 				selectedState = cell->state;
 			}
 		}
@@ -159,8 +234,8 @@ struct ConnectingTiles : Screen
 			return false;
 		}
 
-		uint32_t lastRow = selected[selected.size()-2].y;
-		uint32_t lastColumn = selected[selected.size()-2].x;
+		uint32_t lastRow = selected[selected.size()-2]->row;
+		uint32_t lastColumn = selected[selected.size()-2]->column;
 		//printf("shouldDeselectLast %ux%u => %ux%u\n", row, column, lastRow, lastColumn);
 
 		if (lastRow == row && lastColumn == column)
@@ -174,11 +249,12 @@ struct ConnectingTiles : Screen
 	void deselect(uint32_t row, uint32_t column)
 	{
 		auto cell = board->grid[row][column];
-		if (cell && cell->selected)
+		if (cell)
 		{
 			cell->selected = false;
 			auto tile = std::dynamic_pointer_cast<Tile>(cell->custom);
-			tile->setFillColor(entities, 0x226699FF);
+			//tile->setFillColor(entities, 0x226699FF);
+			tile->setStrokeColor(entities, 0xFFFFFF00);
 			return;
 		}
 	}
@@ -186,13 +262,36 @@ struct ConnectingTiles : Screen
 	void select(uint32_t row, uint32_t column)
 	{
 		auto cell = board->grid[row][column];
-		if (cell && !cell->selected)
+		if (cell)
 		{
 			board->swapToTop(entities, cell);
 			cell->selected = true;
 			auto tile = std::dynamic_pointer_cast<Tile>(cell->custom);
-			tile->setFillColor(entities, 0x229955FF);
+			//tile->setFillColor(entities, 0x229955FF);
+			tile->setStrokeColor(entities, 0xFFFFFFFF);
 		}
+	}
+
+	bool canSelect(std::shared_ptr<ComponentCell> cell)
+	{
+		switch (mode)
+		{
+			case GameMode_Color:
+			{
+				if (selected.size() == 0
+					|| selected[0]->state == cell->state)
+				{
+					return true;
+				}
+				break;
+			}
+			case GameMode_Spelling:
+			{
+				
+				break;
+			}
+		}
+		return false;
 	}
 
 	void drawingMoved(const Vector2& position)
@@ -210,7 +309,7 @@ struct ConnectingTiles : Screen
 				}
 				if (shouldDeselectLast(row, column))
 				{
-					deselect(selected[selected.size()-1].y, selected[selected.size()-1].x);
+					deselect(selected[selected.size()-1]->row, selected[selected.size()-1]->column);
 					selected.pop_back();
 					return;
 				}
@@ -220,15 +319,20 @@ struct ConnectingTiles : Screen
 				}
 				if (selected.size() > 0
 					&& !board->areAdjacent(
-						row, column, selected[selected.size()-1].y, selected[selected.size()-1].x))
+						row, column, selected[selected.size()-1]->row, selected[selected.size()-1]->column))
 				{
 					// printf("not adjacent %ux%u => %ux%u\n",
 					// 	row, column, selected[0].y, selected[0].x);
 					return;
 				}
 
+				if (!canSelect(cell))
+				{
+					return;
+				}
+
 				select(row, column);
-				selected.push_back(Vector2Int(column, row));
+				selected.push_back(cell);
 			}
 		}
 	}
@@ -247,11 +351,10 @@ struct ConnectingTiles : Screen
 
 	void clearSelected()
 	{
-		for (const Vector2Int& coordinate : selected)
+		for (auto cell : selected)
 		{
-			uint32_t row = coordinate.y;
-			uint32_t column = coordinate.x;
-			auto cell = board->grid[row][column];
+			uint32_t row = cell->row;
+			uint32_t column = cell->column;
 			cell->selected = false;
 			
 			auto animation = std::dynamic_pointer_cast<PropertyAnimation>(cell->movement);
@@ -270,10 +373,10 @@ struct ConnectingTiles : Screen
 
 	void deselectAll()
 	{
-		for (const Vector2Int& coordinate : selected)
+		for (auto cell : selected)
 		{
-			uint32_t row = coordinate.y;
-			uint32_t column = coordinate.x;
+			uint32_t row = cell->row;
+			uint32_t column = cell->column;
 			deselect(row, column);
 		}
 		selected.clear();
@@ -294,8 +397,8 @@ void main_loop() { loop(); }
 int main()
 {
 	Game game;
-	std::shared_ptr<Screen> mode0 = std::shared_ptr<Screen>(new ConnectingTiles());
-	std::shared_ptr<Screen> mode1 = std::shared_ptr<Screen>(new Mode1());
+	std::shared_ptr<Screen> mode0 = std::shared_ptr<Screen>(new ConnectingTiles(GameMode_Color));
+	std::shared_ptr<Screen> mode1 = std::shared_ptr<Screen>(new ConnectingTiles(GameMode_Spelling));
 	game.setScreen(mode0);
 
 	int32_t mode = 0;

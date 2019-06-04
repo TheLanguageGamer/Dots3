@@ -36,6 +36,7 @@ def main():
 
 	info = """
 create [name]
+buildAll
 """
 	if len(sys.argv) < 2:
 		print(info)

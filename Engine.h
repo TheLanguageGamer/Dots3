@@ -425,7 +425,20 @@ struct Entity
 
 	static void setStrokeAlpha(Entity& entity, const uint32_t alpha)
 	{
-		
+		switch (entity.type)
+		{
+			case Type::Rectangle:
+			case Type::RoundedRectangle:
+			{
+				entity.id1 = (0xFFFFFF00&(entity.id2)) + alpha;
+				break;
+			}
+			default:
+			{
+				//assert false
+				break;
+			}
+		}
 	}
 
 	static void setAlpha(Entity& entity, const uint32_t alpha)
@@ -1605,6 +1618,16 @@ struct RoundedRectangleComponent : DrawComponent
 		return entities[getStartIndex(entities)+1].id2;
 	}
 
+	void setStrokeColor(std::vector<Entity>& entities, uint32_t rgba)
+	{
+		entities[getStartIndex(entities)+1].id1 = rgba;
+	}
+
+	uint32_t getStrokeColor(std::vector<Entity>& entities)
+	{
+		return entities[getStartIndex(entities)+1].id1;
+	}
+
 	void doLayoutEntities(
 		std::vector<Entity>& entities,
 		const Vector2& oldScreenPosition,
@@ -2274,7 +2297,10 @@ struct ComponentGrid : Component
 		cell->state = state;
 		layoutCell(entities, cell, row, column);
 		grid[row][column] = cell;
-		setCellState(cell->custom.get(), row, column, state);
+		if (setCellState)
+		{
+			setCellState(cell->custom.get(), row, column, state);
+		}
 		//printf("jhelms spawn %p %ux%u == %ux%u\n", cell.get(), row, column, cell->row, cell->column);
 		return cell;
 	}
