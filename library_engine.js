@@ -169,6 +169,10 @@ var LibraryEngine = {
 			}
 			return metrics.emHeightAscent + metrics.emHeightDescent;
 		},
+		spellCheck: function(text) {
+			text = UTF8ToString(text);
+			return text in SPELLINGWORDS;
+		}
 	},
 
 	Engine_Test1: function() {
@@ -236,6 +240,10 @@ var LibraryEngine = {
 
 	Engine_PlaySound: function(path) {
 		Engine.playSound(path);
+	},
+
+	Engine_SpellCheck: function(text) {
+		return Engine.spellCheck(text);
 	},
 };
 

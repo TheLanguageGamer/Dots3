@@ -10,6 +10,7 @@ enum GameMode
 {
 	GameMode_Color,
 	GameMode_Spelling,
+	GameMode_Math,
 };
 
 struct Tile : RoundedRectangleComponent
@@ -19,7 +20,7 @@ struct Tile : RoundedRectangleComponent
 	Tile(std::vector<Entity>& entities, GameMode mode)
 	: RoundedRectangleComponent(entities, 5.0, 3.0, 0xFFFFFF00, 0x226699FF)
 	{
-		if (mode == GameMode_Spelling)
+		if (mode == GameMode_Spelling || mode == GameMode_Math)
 		{		
 			label = std::shared_ptr<TextComponent>(
 				new TextComponent(entities, "A", 0xFFFFFF00, 18.0f));
@@ -34,19 +35,336 @@ struct Tile : RoundedRectangleComponent
 
 struct Configuration
 {
-	std::function<void(std::shared_ptr<ComponentCell> cell)> stateWasSet;
-	std::function<void(std::shared_ptr<ComponentCell> cell)> didSelect;
-	std::function<bool(std::shared_ptr<ComponentCell> cell)> canSelect;
+	virtual uint32_t chooseState(uint32_t row, uint32_t column) = 0;
+	virtual void didSetState(
+		std::vector<Entity>& entities,
+		std::shared_ptr<ComponentCell> cell) = 0;
+	virtual void willRemoveCell(std::shared_ptr<ComponentCell> cell) = 0;
+	virtual void didDeselect(std::shared_ptr<ComponentCell> cell) = 0;
+	virtual void didSelect(std::shared_ptr<ComponentCell> cell) = 0;
+	virtual bool canSelect(
+		std::vector<std::shared_ptr<ComponentCell>> selected,
+		std::shared_ptr<ComponentCell> cell) = 0;
+	virtual bool shouldAcceptSelected(std::vector<std::shared_ptr<ComponentCell>> selected) = 0;
+	virtual void didClearSelected() = 0;
 };
 
-// std::shared_ptr<Configuration> createColorConfiguration()
-// {
-// 	auto configuration = std::shared_ptr<Configuration>(new Configuration());
-// }
+struct ColorConfiguration : Configuration
+{
+	uint32_t chooseState(uint32_t row, uint32_t column)
+	{
+		static const std::vector<const uint32_t> colors({
+			0xFF0000FF,
+			0x00FF00FF,
+			0x0000FFFF,
+		});
+		static std::uniform_int_distribution<uint32_t> dist(0, colors.size()-1);
+		uint32_t index = dist(rng);
+
+		return colors[index];
+	}
+	void didSetState(
+		std::vector<Entity>& entities,
+		std::shared_ptr<ComponentCell> cell)
+	{
+		auto tile = std::dynamic_pointer_cast<Tile>(cell->custom);
+		tile->setFillColor(entities, cell->state);
+	}
+	void willRemoveCell(std::shared_ptr<ComponentCell> cell)
+	{
+
+	}
+	void didDeselect(std::shared_ptr<ComponentCell> cell)
+	{
+
+	}
+	void didSelect(std::shared_ptr<ComponentCell> cell)
+	{
+
+	}
+	bool canSelect(
+		std::vector<std::shared_ptr<ComponentCell>> selected,
+		std::shared_ptr<ComponentCell> cell)
+	{
+		if (selected.size() == 0
+			|| selected[0]->state == cell->state)
+		{
+			return true;
+		}
+		return false;
+	}
+	bool shouldAcceptSelected(std::vector<std::shared_ptr<ComponentCell>> selected)
+	{
+		return selected.size() > 2;
+	}
+	void didClearSelected()
+	{
+
+	}
+};
+
+struct MathConfiguration : Configuration
+{
+	enum Type
+	{
+		Type_Number = 0,
+		Type_Plus,
+		Type_Minus,
+	};
+	struct Node
+	{
+		Type type = Type_Number;
+		int32_t value = 0;
+
+		Node(Type type, int32_t value = 0)
+		: type(type), value(value) {}
+
+		std::string display() const
+		{
+			switch (type)
+			{
+				case Type_Number:
+				{
+					char buff[16];
+					sprintf(buff, "%d", value);
+					return buff;
+				}
+				case Type_Plus:
+				{
+					return "+";
+				}
+				case Type_Minus:
+				{
+					return "-";
+				}
+			}
+		}
+
+		static Node fromState(uint32_t state)
+		{
+			bool negative = state&0xFF00;
+			int32_t value = state&0xFF;
+			if (negative)
+			{
+				value = -value;
+			}
+			Type type = (Type)(state >> 16);
+			return Node(type, value);
+		}
+		static uint32_t toState(const Node& node)
+		{
+			uint32_t state = ((uint32_t)node.type) << 16;
+			int32_t value = node.value;
+			if (value < 0)
+			{
+				value = -value;
+				state |= 0xFF00;
+			}
+			state += value;
+			return state;
+		}
+	};
+	uint32_t chooseState(uint32_t row, uint32_t column)
+	{
+		if (row%2 == 1 && column%2 == 1)
+		{
+			static std::uniform_int_distribution<int32_t> opDist(1, 2);
+			Type type = (Type)opDist(rng);
+			Node node(type);
+			return Node::toState(node);
+		}
+		else
+		{
+			static std::uniform_int_distribution<uint32_t> dist(1, 9);
+			int32_t value = dist(rng);
+			Node node(Type_Number, value);
+			return Node::toState(node);
+		}
+	}
+	void didSetState(
+		std::vector<Entity>& entities,
+		std::shared_ptr<ComponentCell> cell)
+	{
+		const Node node = Node::fromState(cell->state);
+		auto tile = std::dynamic_pointer_cast<Tile>(cell->custom);
+		tile->setFillColor(entities, 0x226699FF);
+		tile->label->setText(entities, node.display());
+	}
+	void willRemoveCell(std::shared_ptr<ComponentCell> cell)
+	{
+
+	}
+	void didDeselect(std::shared_ptr<ComponentCell> cell)
+	{
+
+	}
+	void didSelect(std::shared_ptr<ComponentCell> cell)
+	{
+
+	}
+	bool canSelect(
+		std::vector<std::shared_ptr<ComponentCell>> selected,
+		std::shared_ptr<ComponentCell> cell)
+	{
+		const Node node = Node::fromState(cell->state);
+		if (selected.size() == 0)
+		{
+			return node.type == Type_Number;
+		}
+		const Node lastNode = Node::fromState(selected[selected.size()-1]->state);
+		if (lastNode.type == Type_Number)
+		{
+			return node.type != Type_Number;
+		}
+		else
+		{
+			return node.type == Type_Number;
+		}
+		return true;
+	}
+	double evaluate(std::vector<std::shared_ptr<ComponentCell>> selected)
+	{
+		double aggregate = 0.0;
+		Type lastType = Type_Plus;
+		for (int32_t i = 0; i < selected.size(); ++i)
+		{
+			auto cell = selected[i];
+			const Node node = Node::fromState(cell->state);
+			if (node.type == Type_Number)
+			{
+				switch(lastType)
+				{
+					case Type_Plus:
+					{
+						aggregate += node.value;
+						break;
+					}
+					case Type_Minus:
+					{
+						aggregate -= node.value;
+						break;
+					}
+					default:
+					{
+						break;
+					}
+				}
+			}
+			lastType = node.type;
+		}
+		printf("aggregate: %4.2f\n", aggregate);
+		return aggregate;
+	}
+	bool shouldAcceptSelected(std::vector<std::shared_ptr<ComponentCell>> selected)
+	{
+		if (selected.size() == 0)
+		{
+			return false;
+		}
+		const Node node = Node::fromState(selected[selected.size()-1]->state);
+		if (node.type != Type_Number)
+		{
+			return false;
+		}
+		evaluate(selected);
+		return true;
+	}
+	void didClearSelected()
+	{
+
+	}
+};
+
+struct SpellingConfiguration : Configuration
+{
+	std::string word = "";
+	uint32_t consonantCount = 0;
+	uint32_t vowelCount = 0;
+
+	uint32_t chooseState(uint32_t row, uint32_t column)
+	{
+		static const std::string vowels = "AEIOU";
+		static const std::string consonants = "BCDFGHJKLMNPQRSTVWXYZ";
+		static std::uniform_int_distribution<uint32_t> vowelDist(0, vowels.size()-1);
+		static std::uniform_int_distribution<uint32_t> consonantDist(0, consonants.size()-1);
+		static std::uniform_real_distribution<> dist(0, 1);
+		static const float targetVowelRatio = 0.37;
+		float p = dist(rng);
+		char c = '\0';
+		if (p <= targetVowelRatio)
+		{
+			c = vowels.at(vowelDist(rng));
+		}
+		else
+		{
+			c = consonants.at(consonantDist(rng));
+		}
+		return c - 'A';
+	}
+	void didSetState(
+		std::vector<Entity>& entities,
+		std::shared_ptr<ComponentCell> cell)
+	{
+		char c = 'A' + (char)cell->state;
+		if (c == 'A' || c == 'E' || c == 'I' || c == 'O' || c == 'U')
+		{
+			vowelCount++;
+		}
+		else
+		{
+			consonantCount++;
+		}
+		auto tile = std::dynamic_pointer_cast<Tile>(cell->custom);
+		tile->setFillColor(entities, 0x226699FF);
+		char buff[16];
+		sprintf(buff, "%c", c);
+		tile->label->setText(entities, buff);
+	}
+	void willRemoveCell(std::shared_ptr<ComponentCell> cell)
+	{
+		char c = 'A' + (char)cell->state;
+		if (c == 'A' || c == 'E' || c == 'I' || c == 'O' || c == 'U')
+		{
+			vowelCount--;
+		}
+		else
+		{
+			consonantCount--;
+		}
+	}
+	void didDeselect(std::shared_ptr<ComponentCell> cell)
+	{
+		//assert word.size() > 0
+		printf("didDeselect %s\n", word.c_str());
+		word.pop_back();
+	}
+	void didSelect(std::shared_ptr<ComponentCell> cell)
+	{
+		char c = 'A' + (char)cell->state;
+		word += c;
+		bool isCorrect = Engine_SpellCheck(word.c_str());
+		printf("%c %u Word: %s, Correct: %s\n", c, cell->state, word.c_str(), isCorrect ? "YES" : "NO");
+	}
+	bool canSelect(
+		std::vector<std::shared_ptr<ComponentCell>> selected,
+		std::shared_ptr<ComponentCell> cell)
+	{
+		return true;
+	}
+	bool shouldAcceptSelected(std::vector<std::shared_ptr<ComponentCell>> selected)
+	{
+		return selected.size() > 2 && Engine_SpellCheck(word.c_str());;
+	}
+	void didClearSelected()
+	{
+		word = "";
+	}
+};
 
 struct ConnectingTiles : Screen
 {
 	GameMode mode;
+	std::shared_ptr<Configuration> configuration;
 	std::shared_ptr<FilledRectangleComponent> background;
 	std::shared_ptr<ComponentGrid> board;
 	std::vector<std::shared_ptr<ComponentCell>> selected;
@@ -55,8 +373,28 @@ struct ConnectingTiles : Screen
 	ConnectingTiles(GameMode mode)
 	: board(nullptr)
 	, selectedState(0)
+	, configuration(nullptr)
 	, mode(mode)
 	{
+		switch(mode)
+		{
+			case GameMode_Color:
+			{
+				configuration.reset(new ColorConfiguration());
+				break;
+			}
+			case GameMode_Spelling:
+			{
+				configuration.reset(new SpellingConfiguration());
+				break;
+			}
+			case GameMode_Math:
+			{
+				configuration.reset(new MathConfiguration());
+				break;
+			}
+		}
+
 		rootComponent = std::shared_ptr<struct Component>(new struct Component(entities));
 		rootComponent->setRelativeSize(entities, Vector2(1.0f, 1.0f));
 
@@ -86,16 +424,6 @@ struct ConnectingTiles : Screen
 					return component;
 				},
 				nullptr
-				// [this](struct Component* cell, uint32_t row, uint32_t column, uint32_t state)
-				// {
-				// 	deselect(row, column);
-				// 	auto tile = dynamic_cast<Tile*>(cell);
-
-				// 	char buff[16];
-				// 	sprintf(buff, "%u", state);
-				// 	tile->label->setText(entities, buff);
-
-				// }
 			)
 		);
 		board->setRelativeSize(entities, Vector2(1.0f, 1.0f));
@@ -120,52 +448,6 @@ struct ConnectingTiles : Screen
 		fillErUp();
 	}
 
-	uint32_t chooseState(uint32_t row, uint32_t column)
-	{
-		switch (mode)
-		{
-			case GameMode_Color:
-			{
-				static const std::vector<const uint32_t> colors({
-					0xFF0000FF,
-					0x00FF00FF,
-					0x0000FFFF,
-				});
-				static std::uniform_int_distribution<uint32_t> dist(0, colors.size()-1);
-				uint32_t index = dist(rng);
-
-				return colors[index];
-			}
-			case GameMode_Spelling:
-			{
-				static std::uniform_int_distribution<uint32_t> dist(0, 25);
-				return dist(rng);
-			}
-		}
-	}
-
-	void didSetState(std::shared_ptr<ComponentCell> cell)
-	{
-		switch (mode)
-		{
-			case GameMode_Color:
-			{
-				auto tile = std::dynamic_pointer_cast<Tile>(cell->custom);
-				tile->setFillColor(entities, cell->state);
-				break;
-			}
-			case GameMode_Spelling:
-			{
-				auto tile = std::dynamic_pointer_cast<Tile>(cell->custom);
-				tile->setFillColor(entities, 0x226699FF);
-				char buff[16];
-				sprintf(buff, "%c", 'A' + (char)cell->state);
-				tile->label->setText(entities, buff);
-				break;
-			}
-		}
-	}
-
 	void fillErUp()
 	{
 		static std::uniform_real_distribution<> dist(-500, 500);
@@ -178,10 +460,10 @@ struct ConnectingTiles : Screen
 					continue;
 				}
 				float offset = dist(rng);
-				uint32_t state = chooseState(row, column);
+				uint32_t state = configuration->chooseState(row, column);
 				auto cell = board->spawn(entities, row, column, state);
 				deselect(row, column);
-				didSetState(cell);
+				configuration->didSetState(entities, cell);
 				cell->setOffsetPosition(entities, Vector2(0.0, -1000.0+offset));
 				cell->setAlpha(entities, 0xFF);
 				auto animation = std::dynamic_pointer_cast<PropertyAnimation>(cell->movement);
@@ -211,6 +493,10 @@ struct ConnectingTiles : Screen
 					|| !doesPointIntersectRect(position, cell->screenPosition, cell->screenSize))
 				{
 					continue;
+				}
+				if (!configuration->canSelect(selected, cell))
+				{
+					return;
 				}
 				// if (cell->movement && !cell->movement->isComplete)
 				// {
@@ -251,10 +537,14 @@ struct ConnectingTiles : Screen
 		auto cell = board->grid[row][column];
 		if (cell)
 		{
-			cell->selected = false;
 			auto tile = std::dynamic_pointer_cast<Tile>(cell->custom);
 			//tile->setFillColor(entities, 0x226699FF);
 			tile->setStrokeColor(entities, 0xFFFFFF00);
+			if (cell->selected)
+			{
+				configuration->didDeselect(cell);
+			}
+			cell->selected = false;
 			return;
 		}
 	}
@@ -265,33 +555,15 @@ struct ConnectingTiles : Screen
 		if (cell)
 		{
 			board->swapToTop(entities, cell);
-			cell->selected = true;
 			auto tile = std::dynamic_pointer_cast<Tile>(cell->custom);
 			//tile->setFillColor(entities, 0x229955FF);
 			tile->setStrokeColor(entities, 0xFFFFFFFF);
-		}
-	}
-
-	bool canSelect(std::shared_ptr<ComponentCell> cell)
-	{
-		switch (mode)
-		{
-			case GameMode_Color:
+			if (!cell->selected)
 			{
-				if (selected.size() == 0
-					|| selected[0]->state == cell->state)
-				{
-					return true;
-				}
-				break;
+				configuration->didSelect(cell);
 			}
-			case GameMode_Spelling:
-			{
-				
-				break;
-			}
+			cell->selected = true;
 		}
-		return false;
 	}
 
 	void drawingMoved(const Vector2& position)
@@ -326,7 +598,7 @@ struct ConnectingTiles : Screen
 					return;
 				}
 
-				if (!canSelect(cell))
+				if (!configuration->canSelect(selected, cell))
 				{
 					return;
 				}
@@ -339,7 +611,7 @@ struct ConnectingTiles : Screen
 
 	void drawingEnded(const Vector2& position)
 	{
-		if (selected.size() >= 1)
+		if (configuration->shouldAcceptSelected(selected))
 		{
 			clearSelected();
 		}
@@ -356,6 +628,7 @@ struct ConnectingTiles : Screen
 			uint32_t row = cell->row;
 			uint32_t column = cell->column;
 			cell->selected = false;
+			configuration->willRemoveCell(cell);
 			
 			auto animation = std::dynamic_pointer_cast<PropertyAnimation>(cell->movement);
 			const Vector2 relativeSize = cell->getRelativeSize(entities);
@@ -366,6 +639,8 @@ struct ConnectingTiles : Screen
 
 			board->grid[row][column] = nullptr;
 		}
+		//word = "";
+		configuration->didClearSelected();
 		selected.clear();
 		board->fallDown(entities);
 		fillErUp();
@@ -399,6 +674,7 @@ int main()
 	Game game;
 	std::shared_ptr<Screen> mode0 = std::shared_ptr<Screen>(new ConnectingTiles(GameMode_Color));
 	std::shared_ptr<Screen> mode1 = std::shared_ptr<Screen>(new ConnectingTiles(GameMode_Spelling));
+	std::shared_ptr<Screen> mode2 = std::shared_ptr<Screen>(new ConnectingTiles(GameMode_Math));
 	game.setScreen(mode0);
 
 	int32_t mode = 0;
@@ -419,6 +695,11 @@ int main()
 				case 1:
 				{
 					game.setScreen(mode1);
+					break;
+				}
+				case 2:
+				{
+					game.setScreen(mode2);
 					break;
 				}
 			}

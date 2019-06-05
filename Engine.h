@@ -38,6 +38,7 @@ extern "C"
 		uint32_t strokeRgba, uint32_t fillRgba);
 	extern void Engine_RegisterSound(const char* path);
 	extern void Engine_PlaySound(const char* path);
+	extern bool Engine_SpellCheck(const char* text);
 }
 
 enum Type
