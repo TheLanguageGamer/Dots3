@@ -35,13 +35,23 @@ struct Tile : RoundedRectangleComponent
 
 struct Configuration
 {
-	virtual uint32_t chooseState(uint32_t row, uint32_t column) = 0;
+	virtual uint32_t chooseState(
+		std::shared_ptr<ComponentGrid> board,
+		uint32_t row, uint32_t column) = 0;
 	virtual void didSetState(
 		std::vector<Entity>& entities,
 		std::shared_ptr<ComponentCell> cell) = 0;
 	virtual void willRemoveCell(std::shared_ptr<ComponentCell> cell) = 0;
-	virtual void didDeselect(std::shared_ptr<ComponentCell> cell) = 0;
-	virtual void didSelect(std::shared_ptr<ComponentCell> cell) = 0;
+	virtual void didDeselect(
+		std::vector<Entity>& entities,
+		std::vector<std::shared_ptr<ComponentCell>> selected,
+		std::shared_ptr<ComponentCell> cell,
+		std::shared_ptr<TextComponent> marqueeLabel) = 0;
+	virtual void didSelect(
+		std::vector<Entity>& entities,
+		std::vector<std::shared_ptr<ComponentCell>> selected,
+		std::shared_ptr<ComponentCell> cell,
+		std::shared_ptr<TextComponent> marqueeLabel) = 0;
 	virtual bool canSelect(
 		std::vector<std::shared_ptr<ComponentCell>> selected,
 		std::shared_ptr<ComponentCell> cell) = 0;
@@ -51,7 +61,9 @@ struct Configuration
 
 struct ColorConfiguration : Configuration
 {
-	uint32_t chooseState(uint32_t row, uint32_t column)
+	uint32_t chooseState(
+		std::shared_ptr<ComponentGrid> board,
+		uint32_t row, uint32_t column)
 	{
 		static const std::vector<const uint32_t> colors({
 			0xFF0000FF,
@@ -74,11 +86,19 @@ struct ColorConfiguration : Configuration
 	{
 
 	}
-	void didDeselect(std::shared_ptr<ComponentCell> cell)
+	void didDeselect(
+		std::vector<Entity>& entities,
+		std::vector<std::shared_ptr<ComponentCell>> selected,
+		std::shared_ptr<ComponentCell> cell,
+		std::shared_ptr<TextComponent> marqueeLabel)
 	{
 
 	}
-	void didSelect(std::shared_ptr<ComponentCell> cell)
+	void didSelect(
+		std::vector<Entity>& entities,
+		std::vector<std::shared_ptr<ComponentCell>> selected,
+		std::shared_ptr<ComponentCell> cell,
+		std::shared_ptr<TextComponent> marqueeLabel)
 	{
 
 	}
@@ -110,6 +130,8 @@ struct MathConfiguration : Configuration
 		Type_Number = 0,
 		Type_Plus,
 		Type_Minus,
+		Type_Multiply,
+		Type_Divide,
 	};
 	struct Node
 	{
@@ -136,6 +158,14 @@ struct MathConfiguration : Configuration
 				case Type_Minus:
 				{
 					return "-";
+				}
+				case Type_Multiply:
+				{
+					return "*";
+				}
+				case Type_Divide:
+				{
+					return "/";
 				}
 			}
 		}
@@ -164,12 +194,126 @@ struct MathConfiguration : Configuration
 			return state;
 		}
 	};
-	uint32_t chooseState(uint32_t row, uint32_t column)
+
+	int32_t minusCount = 0;
+	int32_t plusCount = 0;
+
+	bool areAdjacentCellsNonAdd(
+		std::shared_ptr<ComponentGrid> board,
+		uint32_t row, uint32_t column)
 	{
-		if (row%2 == 1 && column%2 == 1)
+		if (row > 0)
 		{
-			static std::uniform_int_distribution<int32_t> opDist(1, 2);
-			Type type = (Type)opDist(rng);
+			auto other = board->grid[row-1][column];
+			const Node node = Node::fromState(other->state);
+			if (node.type == Type_Plus || node.type == Type_Minus)
+			{
+				return false;
+			}
+		}
+		if (column > 0)
+		{
+			auto other = board->grid[row][column-1];
+			const Node node = Node::fromState(other->state);
+			if (node.type == Type_Plus || node.type == Type_Minus)
+			{
+				return false;
+			}
+		}
+		if (row < board->gridSize.y-1)
+		{
+			auto other = board->grid[row+1][column];
+			const Node node = Node::fromState(other->state);
+			if (node.type == Type_Plus || node.type == Type_Minus)
+			{
+				return false;
+			}
+		}
+		if (column < board->gridSize.x-1)
+		{
+			auto other = board->grid[row][column+1];
+			const Node node = Node::fromState(other->state);
+			if (node.type == Type_Plus || node.type == Type_Minus)
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	bool areDiagonalCellsNonAdd(
+		std::shared_ptr<ComponentGrid> board,
+		uint32_t row, uint32_t column)
+	{
+		if (row > 0 && column > 0)
+		{
+			auto other = board->grid[row-1][column-1];
+			const Node node = Node::fromState(other->state);
+			if (node.type == Type_Plus || node.type == Type_Minus)
+			{
+				return false;
+			}
+		}
+		if (row > 0 && column < board->gridSize.x-1)
+		{
+			auto other = board->grid[row-1][column+1];
+			const Node node = Node::fromState(other->state);
+			if (node.type == Type_Plus || node.type == Type_Minus)
+			{
+				return false;
+			}
+		}
+		if (row < board->gridSize.y-1 && column > 0)
+		{
+			auto other = board->grid[row+1][column-1];
+			const Node node = Node::fromState(other->state);
+			if (node.type == Type_Plus || node.type == Type_Minus)
+			{
+				return false;
+			}
+		}
+		if (row < board->gridSize.y-1 && column < board->gridSize.x-1)
+		{
+			auto other = board->grid[row+1][column+1];
+			const Node node = Node::fromState(other->state);
+			if (node.type == Type_Plus || node.type == Type_Minus)
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	uint32_t chooseState(
+		std::shared_ptr<ComponentGrid> board,
+		uint32_t row, uint32_t column)
+	{
+		static std::uniform_real_distribution<> special(0, 1);
+		double s = special(rng);
+		if (areAdjacentCellsNonAdd(board, row, column)
+			&& areDiagonalCellsNonAdd(board, row, column))
+		{
+			static std::uniform_int_distribution<int32_t> op1Dist(1, 2);
+			Type type = Type_Minus;
+			if (minusCount < 2)
+			{
+				type = Type_Minus;
+			}
+			else if (plusCount < 2)
+			{
+				type = Type_Plus;
+			}
+			else
+			{
+				type = (Type)op1Dist(rng);
+			}
+			Node node(type);
+			return Node::toState(node);
+		}
+		else if (areAdjacentCellsNonAdd(board, row, column) && s < 0.4)
+		{
+			static std::uniform_int_distribution<int32_t> op2Dist(3, 4);
+			Type type = (Type)op2Dist(rng);
 			Node node(type);
 			return Node::toState(node);
 		}
@@ -186,21 +330,79 @@ struct MathConfiguration : Configuration
 		std::shared_ptr<ComponentCell> cell)
 	{
 		const Node node = Node::fromState(cell->state);
+		if (node.type == Type_Minus)
+		{
+			minusCount++;
+		}
+		if (node.type == Type_Plus)
+		{
+			plusCount++;
+		}
 		auto tile = std::dynamic_pointer_cast<Tile>(cell->custom);
-		tile->setFillColor(entities, 0x226699FF);
+		switch (node.type)
+		{
+			case Type_Number:
+			{
+				tile->setFillColor(entities, 0x226699FF);
+				break;
+			}
+			case Type_Minus:
+			{
+				tile->setFillColor(entities, 0xBB1133FF);
+				break;
+			}
+			case Type_Plus:
+			{
+				tile->setFillColor(entities, 0x22AA55FF);
+				break;
+			}
+			case Type_Multiply:
+			{
+				tile->setFillColor(entities, 0x222233FF);
+				break;
+			}
+			case Type_Divide:
+			{
+				tile->setFillColor(entities, 0x330022FF);
+				break;
+			}
+		}
 		tile->label->setText(entities, node.display());
 	}
 	void willRemoveCell(std::shared_ptr<ComponentCell> cell)
 	{
-
+		const Node node = Node::fromState(cell->state);
+		if (node.type == Type_Minus)
+		{
+			minusCount--;
+		}
+		if (node.type == Type_Plus)
+		{
+			plusCount++;
+		}
 	}
-	void didDeselect(std::shared_ptr<ComponentCell> cell)
+	void didDeselect(
+		std::vector<Entity>& entities,
+		std::vector<std::shared_ptr<ComponentCell>> selected,
+		std::shared_ptr<ComponentCell> cell,
+		std::shared_ptr<TextComponent> marqueeLabel)
 	{
-
+		double value = evaluate(selected);
+		char buff[16];
+		sprintf(buff, "%4.2f", value);
+		marqueeLabel->setText(entities, buff);
 	}
-	void didSelect(std::shared_ptr<ComponentCell> cell)
+	void didSelect(
+		std::vector<Entity>& entities,
+		std::vector<std::shared_ptr<ComponentCell>> selected,
+		std::shared_ptr<ComponentCell> cell,
+		std::shared_ptr<TextComponent> marqueeLabel)
 	{
-
+		double value = evaluate(selected);
+		char buff[16];
+		sprintf(buff, "%4.2f", value);
+		marqueeLabel->setText(entities, buff);
+		printf("didSelect %4.2f %s\n", value, buff);
 	}
 	bool canSelect(
 		std::vector<std::shared_ptr<ComponentCell>> selected,
@@ -244,6 +446,16 @@ struct MathConfiguration : Configuration
 						aggregate -= node.value;
 						break;
 					}
+					case Type_Multiply:
+					{
+						aggregate *= node.value;
+						break;
+					}
+					case Type_Divide:
+					{
+						aggregate /= node.value;
+						break;
+					}
 					default:
 					{
 						break;
@@ -266,8 +478,8 @@ struct MathConfiguration : Configuration
 		{
 			return false;
 		}
-		evaluate(selected);
-		return true;
+		double value = evaluate(selected);
+		return abs(value) < 0.0001;
 	}
 	void didClearSelected()
 	{
@@ -281,7 +493,9 @@ struct SpellingConfiguration : Configuration
 	uint32_t consonantCount = 0;
 	uint32_t vowelCount = 0;
 
-	uint32_t chooseState(uint32_t row, uint32_t column)
+	uint32_t chooseState(
+		std::shared_ptr<ComponentGrid> board,
+		uint32_t row, uint32_t column)
 	{
 		static const std::string vowels = "AEIOU";
 		static const std::string consonants = "BCDFGHJKLMNPQRSTVWXYZ";
@@ -332,13 +546,21 @@ struct SpellingConfiguration : Configuration
 			consonantCount--;
 		}
 	}
-	void didDeselect(std::shared_ptr<ComponentCell> cell)
+	void didDeselect(
+		std::vector<Entity>& entities,
+		std::vector<std::shared_ptr<ComponentCell>> selected,
+		std::shared_ptr<ComponentCell> cell,
+		std::shared_ptr<TextComponent> marqueeLabel)
 	{
 		//assert word.size() > 0
 		printf("didDeselect %s\n", word.c_str());
 		word.pop_back();
 	}
-	void didSelect(std::shared_ptr<ComponentCell> cell)
+	void didSelect(
+		std::vector<Entity>& entities,
+		std::vector<std::shared_ptr<ComponentCell>> selected,
+		std::shared_ptr<ComponentCell> cell,
+		std::shared_ptr<TextComponent> marqueeLabel)
 	{
 		char c = 'A' + (char)cell->state;
 		word += c;
@@ -367,6 +589,7 @@ struct ConnectingTiles : Screen
 	std::shared_ptr<Configuration> configuration;
 	std::shared_ptr<FilledRectangleComponent> background;
 	std::shared_ptr<ComponentGrid> board;
+	std::shared_ptr<TextComponent> marqueeLabel;
 	std::vector<std::shared_ptr<ComponentCell>> selected;
 	uint32_t selectedState;
 
@@ -414,7 +637,7 @@ struct ConnectingTiles : Screen
 			new ComponentGrid(
 				entities,
 				Vector2Int(8, 5),
-				0.20,
+				0.25,
 				nullptr,
 				[this, mode]()
 				{
@@ -443,7 +666,24 @@ struct ConnectingTiles : Screen
 		);
 
 		background->addChild(entities, board);
+
+		auto marquee = std::shared_ptr<StrokeRectangleComponent>(
+			new StrokeRectangleComponent(entities, 2.0f, 0xFFFFFFFF));
+		marquee->setOffsetSize(entities, Vector2(150.0f, 50.0f));
+		marquee->setRelativePosition(entities, Vector2(1.0, 0.0));
+		marquee->setOffsetPosition(entities, Vector2(-25.0f, 25.0f));
+		marquee->setAnchorPoint(entities, Vector2(1.0f, 0.0f));
+
+		marqueeLabel = std::shared_ptr<TextComponent>(
+			new TextComponent(entities, "0.00", 0xFFFFFFFF, 24.0f));
+		marqueeLabel->setSizeMode(entities, Component::SizeMode_SizeToContents);
+		marqueeLabel->setRelativePosition(entities, Vector2(0.5f, 0.5f));
+		marqueeLabel->setAnchorPoint(entities, Vector2(0.5f, 0.5f));
+		//marqueeLabel->setRelativeSize(entities, Vector2(0.85f, 1.0f));
+
 		rootComponent->addChild(entities, background);
+		marquee->addChild(entities, marqueeLabel);
+		rootComponent->addChild(entities, marquee);
 
 		fillErUp();
 	}
@@ -451,7 +691,7 @@ struct ConnectingTiles : Screen
 	void fillErUp()
 	{
 		static std::uniform_real_distribution<> dist(-500, 500);
-		for (int32_t row = 0; row < board->gridSize.y; ++row)
+		for (int32_t row = board->gridSize.y-1; row >= 0; --row)
 		{
 			for (int32_t column = 0; column < board->gridSize.x; ++column)
 			{
@@ -460,7 +700,7 @@ struct ConnectingTiles : Screen
 					continue;
 				}
 				float offset = dist(rng);
-				uint32_t state = configuration->chooseState(row, column);
+				uint32_t state = configuration->chooseState(board, row, column);
 				auto cell = board->spawn(entities, row, column, state);
 				deselect(row, column);
 				configuration->didSetState(entities, cell);
@@ -506,8 +746,8 @@ struct ConnectingTiles : Screen
 				// cell->selected = true;
 				// auto tile = std::dynamic_pointer_cast<Tile>(cell->custom);
 				// tile->setFillColor(entities, 0x229955FF);
-				select(row, column);
 				selected.push_back(cell);
+				select(row, column);
 				selectedState = cell->state;
 			}
 		}
@@ -542,7 +782,7 @@ struct ConnectingTiles : Screen
 			tile->setStrokeColor(entities, 0xFFFFFF00);
 			if (cell->selected)
 			{
-				configuration->didDeselect(cell);
+				configuration->didDeselect(entities, selected, cell, marqueeLabel);
 			}
 			cell->selected = false;
 			return;
@@ -560,7 +800,7 @@ struct ConnectingTiles : Screen
 			tile->setStrokeColor(entities, 0xFFFFFFFF);
 			if (!cell->selected)
 			{
-				configuration->didSelect(cell);
+				configuration->didSelect(entities, selected, cell, marqueeLabel);
 			}
 			cell->selected = true;
 		}
@@ -581,8 +821,10 @@ struct ConnectingTiles : Screen
 				}
 				if (shouldDeselectLast(row, column))
 				{
-					deselect(selected[selected.size()-1]->row, selected[selected.size()-1]->column);
+					uint32_t dRow = selected[selected.size()-1]->row;
+					uint32_t dColumn = selected[selected.size()-1]->column;
 					selected.pop_back();
+					deselect(dRow, dColumn);
 					return;
 				}
 				if (cell->selected)
@@ -603,8 +845,8 @@ struct ConnectingTiles : Screen
 					return;
 				}
 
-				select(row, column);
 				selected.push_back(cell);
+				select(row, column);
 			}
 		}
 	}
@@ -648,13 +890,14 @@ struct ConnectingTiles : Screen
 
 	void deselectAll()
 	{
-		for (auto cell : selected)
+		auto temp(selected);
+		selected.clear();
+		for (auto cell : temp)
 		{
 			uint32_t row = cell->row;
 			uint32_t column = cell->column;
 			deselect(row, column);
 		}
-		selected.clear();
 	}
 };
 
