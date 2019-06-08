@@ -6,6 +6,13 @@
 std::random_device rd;
 std::mt19937 rng(rd()); 
 
+enum Language
+{
+	Language_None,
+	Language_English,
+	Language_German,
+};
+
 enum GameMode
 {
 	GameMode_Color,
@@ -141,31 +148,62 @@ struct MathConfiguration : Configuration
 		Node(Type type, int32_t value = 0)
 		: type(type), value(value) {}
 
-		std::string display() const
+		std::string display(Language language) const
 		{
-			switch (type)
+			if (language == Language_English)
 			{
-				case Type_Number:
+				switch (type)
 				{
-					char buff[16];
-					sprintf(buff, "%d", value);
-					return buff;
+					case Type_Number:
+					{
+						char buff[16];
+						sprintf(buff, "%d", value);
+						return buff;
+					}
+					case Type_Plus:
+					{
+						return "plus";
+					}
+					case Type_Minus:
+					{
+						return "minus";
+					}
+					case Type_Multiply:
+					{
+						return "times";
+					}
+					case Type_Divide:
+					{
+						return "divided by";
+					}
 				}
-				case Type_Plus:
+			}
+			else
+			{
+				switch (type)
 				{
-					return "+";
-				}
-				case Type_Minus:
-				{
-					return "-";
-				}
-				case Type_Multiply:
-				{
-					return "*";
-				}
-				case Type_Divide:
-				{
-					return "/";
+					case Type_Number:
+					{
+						char buff[16];
+						sprintf(buff, "%d", value);
+						return buff;
+					}
+					case Type_Plus:
+					{
+						return "+";
+					}
+					case Type_Minus:
+					{
+						return "-";
+					}
+					case Type_Multiply:
+					{
+						return "*";
+					}
+					case Type_Divide:
+					{
+						return "/";
+					}
 				}
 			}
 		}
@@ -319,8 +357,10 @@ struct MathConfiguration : Configuration
 		}
 		else
 		{
-			static std::uniform_int_distribution<uint32_t> dist(1, 9);
-			int32_t value = dist(rng);
+			//static std::uniform_int_distribution<uint32_t> dist(1, 6);
+			//static std::poisson_distribution<> dist(2);
+			static std::discrete_distribution<> dist({10, 16, 16, 13, 10, 7, 4, 3, 2, 1, 1, 1});
+			int32_t value = dist(rng) + 1;
 			Node node(Type_Number, value);
 			return Node::toState(node);
 		}
@@ -367,7 +407,7 @@ struct MathConfiguration : Configuration
 				break;
 			}
 		}
-		tile->label->setText(entities, node.display());
+		tile->label->setText(entities, node.display(Language_None));
 	}
 	void willRemoveCell(std::shared_ptr<ComponentCell> cell)
 	{
