@@ -169,6 +169,20 @@ struct Entity
 		return idToString[id];
 	}
 
+	static Entity image(
+		const std::string& filename,
+		const Vector2& position,
+		const Vector2& size)
+	{
+		Entity entity;
+		entity.type = Type::Image;
+		entity.coord1 = position;
+		entity.coord3 = size;
+		entity.id2 = getIdForText(filename);
+		entity.id1 = 0xFFFFFFFF;
+		return entity;
+	}
+
 	static Entity text(
 		const std::string& text,
 		const Vector2& position,
@@ -218,6 +232,23 @@ struct Entity
 				entity.id2 = getIdForText(text);
 				float width = Engine_MeasureTextWidth(text.c_str(), entity.coord3.y);
 				entity.coord3.x = width;
+				break;
+			}
+			default:
+			{
+				//assert false
+				break;
+			}
+		}
+	}
+
+	static void setImage(Entity& entity, const std::string& text)
+	{
+		switch (entity.type)
+		{
+			case Type::Image:
+			{
+				entity.id2 = getIdForText(text);
 				break;
 			}
 			default:
@@ -347,8 +378,10 @@ struct Entity
 				break;
 			}
 			case Type::Text:
+			case Type::Image:
 			{
 				entity.id1 = fillRgba;
+				break;
 			}
 			default:
 			{
@@ -388,6 +421,7 @@ struct Entity
 				return entity.id2 & 0xFF;
 			}
 			case Type::Text:
+			case Type::Image:
 			{
 				return entity.id1 & 0xFF;
 			}
@@ -412,6 +446,7 @@ struct Entity
 				break;
 			}
 			case Type::Text:
+			case Type::Image:
 			{
 				entity.id1 = (0xFFFFFF00&(entity.id1)) + alpha;
 				break;
@@ -1863,6 +1898,50 @@ struct StrokeCircleComponent : DrawComponent
 	}
 };
 
+struct ImageComponent : DrawComponent
+{
+	ImageComponent(
+		std::vector<Entity>& entities,
+		const std::string& filename)
+	: DrawComponent(entities)
+	{
+		Entity imageEntity = Entity::image(filename, Vector2(), Vector2());
+		addEntity(entities, imageEntity);
+	}
+
+	void setFillColor(std::vector<Entity>& entities, uint32_t rgba)
+	{
+		Entity::setFillColor(entities[getStartIndex(entities)+1], rgba);
+	}
+
+	void doLayoutEntities(
+		std::vector<Entity>& entities,
+		const Vector2& oldScreenPosition,
+		const Vector2& oldScreenSize) override
+	{
+		Entity& rectangle = entities[getStartIndex(entities)+1];
+		rectangle.coord1 = screenPosition;
+		rectangle.coord3 = screenSize;
+	}
+
+	void doLayout(
+		std::vector<Entity>& entities,
+		const Vector2& parentPosition,
+		const Vector2& parentSize) override
+	{
+		const Vector2 oldScreenSize = screenSize;
+		const Vector2 oldScreenPosition = screenPosition;
+		doLayoutCommon(entities, parentPosition, parentSize);
+		doLayoutEntities(entities, oldScreenPosition, oldScreenSize);
+		doLayoutChildren(entities);
+	}
+
+	void setImage(std::vector<Entity>& entities, const std::string& filename)
+	{
+		Entity::setImage(entities[getStartIndex(entities)+1], filename);
+	}
+};
+
 struct TextComponent : DrawComponent
 {
 	TextComponent(
@@ -2249,6 +2328,7 @@ struct ComponentGrid : Component
 
 	void resizeGrid(std::vector<Entity>& entities, const Vector2Int& newGridSize)
 	{
+		//assert newGridSize < maxGridSize
 		clear(entities);
 		gridSize = newGridSize;
 		cellRelativeSize = Vector2((1.0 - paddingPercent)/gridSize.x, (1.0 - paddingPercent)/gridSize.y);
@@ -2314,10 +2394,10 @@ struct ComponentGrid : Component
 
 	void fallLeft(std::vector<Entity>& entities)
 	{
-		for (int32_t row = 0; row < maxGridSize.y; ++row)
+		for (int32_t row = 0; row < gridSize.y; ++row)
 		{
 			int32_t firstEmpty = -1;
-			for (int32_t column = 0; column < maxGridSize.x; ++column)
+			for (int32_t column = 0; column < gridSize.x; ++column)
 			{
 				auto cell = grid[row][column];
 				if (cell)
@@ -2338,10 +2418,10 @@ struct ComponentGrid : Component
 
 	void fallUp(std::vector<Entity>& entities)
 	{
-		for (int32_t column = 0; column < maxGridSize.x; ++column)
+		for (int32_t column = 0; column < gridSize.x; ++column)
 		{
 			int32_t firstEmpty = -1;
-			for (int32_t row = 0; row < maxGridSize.y; ++row)
+			for (int32_t row = 0; row < gridSize.y; ++row)
 			{
 				auto cell = grid[row][column];
 				if (cell)
@@ -2362,10 +2442,10 @@ struct ComponentGrid : Component
 
 	void fallRight(std::vector<Entity>& entities)
 	{
-		for (int32_t row = 0; row < maxGridSize.y; ++row)
+		for (int32_t row = 0; row < gridSize.y; ++row)
 		{
 			int32_t firstEmpty = -1;
-			for (int32_t column = maxGridSize.x-1; column >= 0; --column)
+			for (int32_t column = gridSize.x-1; column >= 0; --column)
 			{
 				auto cell = grid[row][column];
 				if (cell)
@@ -2386,10 +2466,10 @@ struct ComponentGrid : Component
 
 	void fallDown(std::vector<Entity>& entities)
 	{
-		for (int32_t column = 0; column < maxGridSize.x; ++column)
+		for (int32_t column = 0; column < gridSize.x; ++column)
 		{
 			int32_t firstEmpty = -1;
-			for (int32_t row = maxGridSize.y-1; row >= 0 ; --row)
+			for (int32_t row = gridSize.y-1; row >= 0 ; --row)
 			{
 				auto cell = grid[row][column];
 				if (cell)
@@ -3166,6 +3246,19 @@ struct Game
 						entity.coord1.y + entity.coord4.x,
 						entity.coord4.x,
 						entity.id1);
+					break;
+				}
+				case Type::Image:
+				{
+					const std::string& filename = Entity::getTextForId(entity.id2);
+					Engine_Image(
+						filename.c_str(),
+						entity.coord1.x,
+						entity.coord1.y,
+						entity.coord3.x,
+						entity.coord3.y,
+						entity.id1);
+					break;
 				}
 				default:
 				{

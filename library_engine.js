@@ -3,7 +3,7 @@ var LibraryEngine = {
 		ctx : null,
 		IMAGE_FOLDER : "../../images/",
 		images : {},
-		mode : 2,
+		mode : 3,
 		sounds: {},
 		init: function() {
 			console.log("$Engine.init");
@@ -58,17 +58,21 @@ var LibraryEngine = {
 				image = new Image();
 				image.src = Engine.IMAGE_FOLDER + name;
 				Engine.images[name] = image;
+				//console.log("image undefined");
 				return;
 			}
 			// maintain aspect ratio
 			if (!image.complete) {
+				//console.log("image incomplete");
 				return;
 			}
 			var alphaInt = rgba & 0xff;
 			if (alphaInt == 0) {
+				//console.log("alpha is 0");
 				return;
 			}
 			Engine.ctx.globalAlpha = alphaInt / 255;
+			//console.log("drawImage:", name, Engine.ctx.globalAlpha, width, height, x, y);
 			// var ratio = width/height;
 			// var targetRatio = image.width/image.height;
 			// if (targetRatio > ratio)
