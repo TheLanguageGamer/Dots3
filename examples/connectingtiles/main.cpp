@@ -966,7 +966,7 @@ struct MathConfiguration : Configuration
 
 	MathConfiguration()
 	{
-		gridSize = Vector2Int(8, 6);
+		gridSize = Vector2Int(10, 16);
 	}
 
 	bool areAdjacentCellsNonAdd(
@@ -1451,7 +1451,7 @@ struct ConnectingTiles : Screen
 		board = std::shared_ptr<ComponentGrid>(
 			new ComponentGrid(
 				entities,
-				Vector2Int(10, 10),
+				Vector2Int(24, 24),
 				0.25,
 				nullptr,
 				[this, mode]()
@@ -1530,6 +1530,8 @@ struct ConnectingTiles : Screen
 			}
 		}
 		configuration->language = currentLanguage;
+		background->aspectRatio = ((double)(configuration->gridSize.x))/((double)(configuration->gridSize.y));
+		printf("ASPECT RATIO %4.2f\n", background->aspectRatio);
 		board->resizeGrid(entities, configuration->gridSize);
 		fillErUp();
 	}
