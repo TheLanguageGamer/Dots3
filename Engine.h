@@ -2440,6 +2440,21 @@ struct ComponentGrid : Component
 		}
 	}
 
+	void shiftUp(std::vector<Entity>& entities)
+	{
+		for (int32_t column = 0; column < gridSize.x; ++column)
+		{
+			for (int32_t row = 1; row < gridSize.y; ++row)
+			{
+				auto cell = grid[row][column];
+				if (cell)
+				{
+					move(entities, row, column, row-1, column);
+				}
+			}
+		}
+	}
+
 	void fallRight(std::vector<Entity>& entities)
 	{
 		for (int32_t row = 0; row < gridSize.y; ++row)

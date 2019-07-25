@@ -514,9 +514,22 @@ struct Tile : RoundedRectangleComponent
 
 struct Configuration
 {
+	enum FillMode
+	{
+		FillMode_Full,
+		FillMode_BottomRow,
+	};
+
 	Language language = Language_None;
 	uint32_t highlightColor = 0xFFFFFFFF;
 	Vector2Int gridSize = Vector2Int(2, 1);
+	const int32_t top = 0;
+	const FillMode fillMode = FillMode_Full;
+
+	Configuration() {}
+	Configuration(int32_t top, FillMode fillMode)
+	: top(top)
+	, fillMode(fillMode) {}
 
 	virtual uint32_t chooseState(
 		std::shared_ptr<ComponentGrid> board,
@@ -965,8 +978,9 @@ struct MathConfiguration : Configuration
 	int32_t plusCount = 0;
 
 	MathConfiguration()
+	: Configuration(7, Configuration::FillMode_BottomRow)
 	{
-		gridSize = Vector2Int(10, 16);
+		gridSize = Vector2Int(8, 13);
 	}
 
 	bool areAdjacentCellsNonAdd(
@@ -1539,7 +1553,7 @@ struct ConnectingTiles : Screen
 	void fillErUp()
 	{
 		static std::uniform_real_distribution<> dist(-500, 500);
-		for (int32_t row = board->gridSize.y-1; row >= 0; --row)
+		for (int32_t row = board->gridSize.y-1; row >= configuration->top; --row)
 		{
 			for (int32_t column = 0; column < board->gridSize.x; ++column)
 			{
@@ -1732,8 +1746,21 @@ struct ConnectingTiles : Screen
 		//word = "";
 		configuration->didClearSelected();
 		selected.clear();
-		board->fallDown(entities);
-		fillErUp();
+		switch (configuration->fillMode)
+		{
+			case Configuration::FillMode_Full:
+			{
+				board->fallDown(entities);
+				fillErUp();
+				break;
+			}
+			case Configuration::FillMode_BottomRow:
+			{
+				board->fallDown(entities);
+				board->shiftUp(entities);
+				break;
+			}
+		}
 	}
 
 	void deselectAll()
