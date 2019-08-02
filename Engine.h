@@ -1356,6 +1356,7 @@ struct PropertyAnimation : Movement
 		{
 			const Vector2 current = component->getRelativePosition(entities);
 			Vector2 newValue = relativePosition.step(deltaTime, current);
+			//printf("new relativePosition: %4.2fx%4.2f\n", newValue.x, newValue.y);
 			component->setRelativePosition(entities, newValue);
 			if (relativePosition.isComplete)
 			{
@@ -2440,21 +2441,6 @@ struct ComponentGrid : Component
 		}
 	}
 
-	void shiftUp(std::vector<Entity>& entities)
-	{
-		for (int32_t column = 0; column < gridSize.x; ++column)
-		{
-			for (int32_t row = 1; row < gridSize.y; ++row)
-			{
-				auto cell = grid[row][column];
-				if (cell)
-				{
-					move(entities, row, column, row-1, column);
-				}
-			}
-		}
-	}
-
 	void fallRight(std::vector<Entity>& entities)
 	{
 		for (int32_t row = 0; row < gridSize.y; ++row)
@@ -2503,6 +2489,22 @@ struct ComponentGrid : Component
 		}
 	}
 
+	void shiftUp(std::vector<Entity>& entities)
+	{
+		for (int32_t column = 0; column < gridSize.x; ++column)
+		{
+			for (int32_t row = 1; row < gridSize.y; ++row)
+			{
+				auto cell = grid[row][column];
+				if (cell)
+				{
+					printf("shiftUp cell\n");
+					move(entities, row, column, row-1, column);
+				}
+			}
+		}
+	}
+
 	void move(
 		std::vector<Entity>& entities,
 		uint32_t row1,
@@ -2519,10 +2521,15 @@ struct ComponentGrid : Component
 		grid[row2][column2] = cell;
 		grid[row1][column1] = nullptr;
 
-		auto animation = std::dynamic_pointer_cast<PropertyAnimation>(cell->movement);
-		//printf("animation? %p %p\n", animation.get(), cell->movement.get());
-		animation->setRelativePosition(getPosition(entities, row2, column2));
-		//cell->setRelativePosition(entities, getPosition(entities, row2, column2));
+//		if (animated)
+//		{
+			auto animation = std::dynamic_pointer_cast<PropertyAnimation>(cell->movement);
+			animation->setRelativePosition(getPosition(entities, row2, column2));
+		// }
+		// else
+		// {
+		// 	cell->setRelativePosition(entities, getPosition(entities, row2, column2));
+		// }
 	}
 
 	void validateConsistency()

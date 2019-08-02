@@ -1195,20 +1195,20 @@ struct MathConfiguration : Configuration
 		std::vector<std::shared_ptr<ComponentCell>> selected,
 		std::shared_ptr<ComponentCell> cell)
 	{
-		const Node node = Node::fromState(cell->state);
-		if (selected.size() == 0)
-		{
-			return node.type == Type_Number;
-		}
-		const Node lastNode = Node::fromState(selected[selected.size()-1]->state);
-		if (lastNode.type == Type_Number)
-		{
-			return node.type != Type_Number;
-		}
-		else
-		{
-			return node.type == Type_Number;
-		}
+		// const Node node = Node::fromState(cell->state);
+		// if (selected.size() == 0)
+		// {
+		// 	return node.type == Type_Number;
+		// }
+		// const Node lastNode = Node::fromState(selected[selected.size()-1]->state);
+		// if (lastNode.type == Type_Number)
+		// {
+		// 	return node.type != Type_Number;
+		// }
+		// else
+		// {
+		// 	return node.type == Type_Number;
+		// }
 		return true;
 	}
 	double evaluate(std::vector<std::shared_ptr<ComponentCell>> selected)
@@ -1256,17 +1256,18 @@ struct MathConfiguration : Configuration
 	}
 	bool shouldAcceptSelected(std::vector<std::shared_ptr<ComponentCell>> selected)
 	{
-		if (selected.size() == 0)
-		{
-			return false;
-		}
-		const Node node = Node::fromState(selected[selected.size()-1]->state);
-		if (node.type != Type_Number)
-		{
-			return false;
-		}
-		double value = evaluate(selected);
-		return abs(value) < 0.0001;
+	// 	if (selected.size() == 0)
+	// 	{
+	// 		return false;
+	// 	}
+	// 	const Node node = Node::fromState(selected[selected.size()-1]->state);
+	// 	if (node.type != Type_Number)
+	// 	{
+	// 		return false;
+	// 	}
+	// 	double value = evaluate(selected);
+	// 	return abs(value) < 0.0001;
+		return true;
 	}
 	void didClearSelected()
 	{
@@ -1576,6 +1577,27 @@ struct ConnectingTiles : Screen
 		board->relayout(entities);
 	}
 
+	void fillBottomRow()
+	{
+		uint32_t row = board->gridSize.y-1;
+		for (int32_t column = 0; column < board->gridSize.x; ++column)
+		{
+			if (board->grid[row][column])
+			{
+				continue;
+			}
+			uint32_t state = configuration->chooseState(board, row, column);
+			auto cell = board->spawn(entities, row, column, state);
+			deselect(row, column);
+			configuration->didSetState(entities, cell);
+			cell->setRelativePosition(entities, board->getPosition(entities, row + 1, column));
+			cell->setAlpha(entities, 0xFF);
+			auto animation = std::dynamic_pointer_cast<PropertyAnimation>(cell->movement);
+			animation->setRelativePosition(board->getPosition(entities, row, column));
+			animation->disableOnComplete = false;
+		}
+	}
+
 	void drawingBegan(const Vector2& position)
 	{
 		printf("drawingBegan\n");
@@ -1756,8 +1778,9 @@ struct ConnectingTiles : Screen
 			}
 			case Configuration::FillMode_BottomRow:
 			{
-				board->fallDown(entities);
 				board->shiftUp(entities);
+				fillBottomRow();
+				board->fallDown(entities);
 				break;
 			}
 		}
